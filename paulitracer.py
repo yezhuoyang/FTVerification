@@ -1,19 +1,19 @@
 
 
-oneQGate = ["H", "P", "X", "Y", "Z"]
+oneQGate_ = ["H", "P", "X", "Y", "Z"]
 oneQGateindices={"H":0, "P":1, "X":2, "Y":3, "Z":4}
 
 
-twoQGate = ["CNOT", "CZ"]
+twoQGate_ = ["CNOT", "CZ"]
 twoQGateindices={"CNOT":0, "CZ":1}
 
-pauliNoise = ["X", "Y", "Z"]
-pauliNoiseindices={"X":0, "Y":1, "Z":2}
+pauliNoise_ = ["I","X", "Y", "Z"]
+pauliNoiseindices={"I":0,"X":1, "Y":2, "Z":3}
 
 
 class SingeQGate:
     def __init__(self, gateindex, qubitindex):
-        self._name = oneQGate[gateindex]
+        self._name = oneQGate_[gateindex]
         self._qubitindex = qubitindex
 
     def __str__(self):
@@ -22,7 +22,7 @@ class SingeQGate:
 
 class TwoQGate:
     def __init__(self, gateindex, control, target):
-        self._name = twoQGate[gateindex]
+        self._name = twoQGate_[gateindex]
         self._control = control
         self._target = target
 
@@ -35,9 +35,15 @@ class pauliNoise:
         self._name="n"+str(noiseindex)
         self._noiseindex= noiseindex
         self._qubitindex = qubitindex
+        self._noisetype=0
+
+
+    def set_noisetype(self, noisetype):
+        self._noisetype=noisetype
+
 
     def __str__(self):
-        return self._name + "[" + str(self._qubitindex) + "]"
+        return self._name +"("+pauliNoise_[self._noisetype] +")" +"[" + str(self._qubitindex) + "]"
 
 
 class Measurement:
@@ -56,44 +62,99 @@ class CliffordCircuit:
 
     def __init__(self, qubit_num):
         self._qubit_num = qubit_num
+        self._totalnoise=0
+        self._totalgates=0
         self._gatelists=[]
+        self._index_to_noise={}
+        self._shownoise=False
+
+
+    def set_noise_type(self, noiseindex, noisetype):
+        self._index_to_noise[noiseindex].set_noisetype(noisetype)
+
+
+    def reset_noise_type(self):
+        for i in range(self._totalnoise):
+            self._index_to_noise[i].set_noisetype(0)
+
+    def show_all_noise(self):
+        for i in range(self._totalnoise):
+            print(self._index_to_noise[i])
+
 
     def add_cnot(self, control, target):
+        self._gatelists.append(pauliNoise(self._totalnoise, control))
+        self._index_to_noise[self._totalnoise]=self._gatelists[-1]
+        self._totalnoise+=1
+        self._gatelists.append(pauliNoise(self._totalnoise, target))
+        self._index_to_noise[self._totalnoise]=self._gatelists[-1]
+        self._totalnoise+=1
         self._gatelists.append(TwoQGate(twoQGateindices["CNOT"], control, target))
 
 
     def add_hadamard(self, qubit):
+        self._gatelists.append(pauliNoise(self._totalnoise, qubit))
+        self._index_to_noise[self._totalnoise]=self._gatelists[-1]
+        self._totalnoise+=1        
         self._gatelists.append(SingeQGate(oneQGateindices["H"], qubit))
 
 
     def add_phase(self, qubit):
+        self._gatelists.append(pauliNoise(self._totalnoise, qubit))
+        self._index_to_noise[self._totalnoise]=self._gatelists[-1]
+        self._totalnoise+=1      
         self._gatelists.append(SingeQGate(oneQGateindices["P"], qubit))
 
     def add_cz(self, qubit1, qubit2):
+        self._gatelists.append(pauliNoise(self._totalnoise, qubit1))
+        self._index_to_noise[self._totalnoise]=self._gatelists[-1]
+        self._totalnoise+=1
+        self._gatelists.append(pauliNoise(self._totalnoise, qubit1))
+        self._index_to_noise[self._totalnoise]=self._gatelists[-1]
+        self._totalnoise+=1
         self._gatelists.append(TwoQGate(twoQGateindices["CZ"], qubit1, qubit2))     
 
 
     def add_paulix(self, qubit):
+        self._gatelists.append(pauliNoise(self._totalnoise, qubit))
+        self._index_to_noise[self._totalnoise]=self._gatelists[-1]
+        self._totalnoise+=1     
         self._gatelists.append(SingeQGate(oneQGateindices["X"], qubit))
 
 
     def add_pauliy(self, qubit):
+        self._gatelists.append(pauliNoise(self._totalnoise, qubit))
+        self._index_to_noise[self._totalnoise]=self._gatelists[-1]
+        self._totalnoise+=1    
         self._gatelists.append(SingeQGate(oneQGateindices["Y"], qubit))
 
 
     def add_pauliz(self, qubit):
+        self._gatelists.append(pauliNoise(self._totalnoise, qubit))
+        self._index_to_noise[self._totalnoise]=self._gatelists[-1]
+        self._totalnoise+=1    
         self._gatelists.append(SingeQGate(oneQGateindices["Z"], qubit))
 
 
     def add_measurement(self, qubit):
+        self._gatelists.append(pauliNoise(self._totalnoise, qubit))
+        self._index_to_noise[self._totalnoise]=self._gatelists[-1]
+        self._totalnoise+=1   
         self._gatelists.append(Measurement(qubit))
 
     
+    def setShowNoise(self, show):
+        self._shownoise=show
+
     def __str__(self):
         str=""
         for gate in self._gatelists:
+            if isinstance(gate, pauliNoise) and not self._shownoise:
+                continue
             str+=gate.__str__()+"\n"
         return str
+
+
 
 
 
@@ -177,6 +238,7 @@ class PauliTracer:
     def evolve_Z(self,qubit):
         pass
 
+
     def evolve_all(self):
         for gate in self._circuit._gatelists:
             if isinstance(gate, SingeQGate):
@@ -196,7 +258,12 @@ class PauliTracer:
                 elif gate._name=="CZ":
                     self.evolve_CZ(gate._control, gate._target)
             elif isinstance(gate, pauliNoise):
-                pass
+                if gate._noisetype==1:
+                    self.evolve_X(gate._qubitindex)
+                elif gate._noisetype==2:
+                    self.evolve_Y(gate._qubitindex)
+                elif gate._noisetype==3:
+                    self.evolve_Z(gate._qubitindex)
             elif isinstance(gate, Measurement):
                 pass
 
@@ -208,9 +275,15 @@ if __name__ == "__main__":
     circuit.add_cnot(0,1)
     #circuit.add_cnot(1,2)
     circuit.add_measurement(2)
+    circuit.setShowNoise(True)
     print(circuit)
 
+    circuit.set_noise_type(2, 1)
+    circuit.set_noise_type(3, 2)
+    circuit.reset_noise_type()
+    circuit.show_all_noise()
 
-    tracer=PauliTracer(3, circuit)
-    tracer.set_initial_stabilizers(["X", "I", "I"])
-    tracer.evolve_all()
+
+    #tracer=PauliTracer(3, circuit)
+    #tracer.set_initial_stabilizers(["X", "I", "I"])
+    #tracer.evolve_all()
