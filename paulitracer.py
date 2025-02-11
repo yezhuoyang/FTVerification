@@ -152,6 +152,11 @@ class CliffordCircuit:
                     else:
                         raise ValueError(f"Unknown gate type: {gate_type}")
 
+    
+    def save_circuit_to_file(self, filename):
+        pass
+
+
 
 
     def set_noise_type(self, noiseindex, noisetype):
@@ -482,6 +487,11 @@ class PauliTracer:
 
 
 rep_decoder={"01111":"IXI","00101":"IIX","01010":"XII"}
+
+steane_decoder={"000001":"XIIIIII","000010":"IXIIIII","000011":"IIXIIII","000100":"IIIXIII","000101":"IIIIXII","000110":"IIIIIXI","000111":"IIIIIIX",
+                "001000":"ZIIIIII","010000":"IZIIIII","011000":"IIZIIII","100000":"IIIZIII","101000":"IIIIZII","110000":"IIIIIZI","111000":"IIIIIIZ"}
+
+
 
 def filter_string(s, indices):
     return ''.join(s[i] for i in indices)
