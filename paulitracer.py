@@ -481,6 +481,11 @@ class PauliTracer:
                 self._measuredError[gate._measureindex]=self._inducedNoise[gate._qubitindex]
 
 
+rep_decoder={"01111":"IXI","00101":"IIX","01010":"XII"}
+
+def filter_string(s, indices):
+    return ''.join(s[i] for i in indices)
+
 
 class OneFaultFTVerifier:
 
@@ -534,12 +539,20 @@ class OneFaultFTVerifier:
 
             self._syndromeErrorTable["n"+str(i)+":X"]=(syndromeString,tmptable["inducedNoise"])
 
+            tmptable=self.transform_table(self._finaltableZ[i][0], self._finaltableZ[i][1])
+            syndromeString=""
+            for j in range(self._totalMeas):
+                syndromeString+=str(tmptable[j])
+
+            self._syndromeErrorTable["n"+str(i)+":Z"]=(syndromeString,tmptable["inducedNoise"])
+
+
 
     def print_unique_table(self):
         print("Unique table")
 
         for key in self._syndromeErrorTable:
-            print(key, self._syndromeErrorTable[key][0], self._syndromeErrorTable[key][1])
+            print(key+"   ", self._syndromeErrorTable[key][0]+"   ", self._syndromeErrorTable[key][1])
 
         print("\n") 
 
@@ -561,6 +574,16 @@ class OneFaultFTVerifier:
         print("\n")
 
 
+    def verify_fault_tolerance(self):
+        for key in self._filterdsyndromeErrorTable:
+            correction=rep_decoder[self._filterdsyndromeErrorTable[key][0]]
+            error=self._filterdsyndromeErrorTable[key][1]
+            if error!=correction:
+                return False
+        return True
+
+
+
     def print_table(self):
         print("X error table")
         for i in range(self._totalnoise):
@@ -579,23 +602,25 @@ class OneFaultFTVerifier:
 if __name__ == "__main__":
 
     circuit=CliffordCircuit(2)
-    circuit.read_circuit_from_file("code/repetition")
+    circuit.read_circuit_from_file("code/steanes1")
     circuit.setShowNoise(True)
     tracer=PauliTracer(circuit) 
-    tracer.set_dataqubits([1,2,3])
-    #circuit.set_noise_type(0, 1)
+    tracer.set_dataqubits([0,1,2,3,4,5,6])
+
+
+
     ftverifier=OneFaultFTVerifier(tracer)
     ftverifier.generate_table()
     ftverifier.transform_table_unique()
-    #ftverifier.print_table()
     ftverifier.print_unique_table()
 
-    ftverifier.filter_table()
-    ftverifier.print_filter_table()
+    #ftverifier.filter_table()
+    #ftverifier.print_filter_table()
 
-    #print(circuit.get_yquant_latex())
+
+    #print(ftverifier.verify_fault_tolerance())
+    print(circuit.get_yquant_latex())
     #tracer=PauliTracer(circuit)
     #tracer.evolve_all()   
     #tracer.print_measuredError()   
-
     #print(circuit)

@@ -1,0 +1,12 @@
+NumberOfQubit 13
+cnot 3 10
+cnot 4 10
+cnot 5 10
+cnot 6 10
+M 10
+R 10
+cnot 3 10
+cnot 4 10
+cnot 5 10
+cnot 6 10
+M 10
