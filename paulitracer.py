@@ -162,81 +162,103 @@ class CliffordCircuit:
 #Trace the pauli frame according to the circuit
 class PauliTracer:
     def __init__(self, qubit_num, circuit):
-        self._stabilizers=["I"]*qubit_num
+        self._inducedNoise=["I"]*qubit_num
         self._circuit=circuit
 
 
-    def set_initial_stabilizers(self, stabilizers):
-        self._stabilizers=stabilizers
+    def set_initial_inducedNoise(self, inducedNoise):
+        self._inducedNoise=inducedNoise
 
 
-    def print_stabilizers(self):
-        print(self._stabilizers)
+    def print_inducedNoise(self):
+        print(self._inducedNoise)
 
 
     def evolve_CNOT(self, control, target):
-        pauliStr=self._stabilizers[control]+self._stabilizers[target]
+        pauliStr=self._inducedNoise[control]+self._inducedNoise[target]
         if pauliStr=="XI":
-            self._stabilizers[control]="X"
-            self._stabilizers[target]="X"
+            self._inducedNoise[control]="X"
+            self._inducedNoise[target]="X"
         elif pauliStr=="XX":
-            self._stabilizers[control]="X"
-            self._stabilizers[target]="I"   
+            self._inducedNoise[control]="X"
+            self._inducedNoise[target]="I"   
         elif pauliStr=="IZ":         
-            self._stabilizers[control]="Z"
-            self._stabilizers[target]="Z"
+            self._inducedNoise[control]="Z"
+            self._inducedNoise[target]="Z"
         elif pauliStr=="ZZ":         
-            self._stabilizers[control]="I"
-            self._stabilizers[target]="Z"
+            self._inducedNoise[control]="I"
+            self._inducedNoise[target]="Z"
         elif pauliStr=="IY":
-            self._stabilizers[control]="Z"
-            self._stabilizers[target]="Y"
+            self._inducedNoise[control]="Z"
+            self._inducedNoise[target]="Y"
         elif pauliStr=="YI":
-            self._stabilizers[control]="Y"
-            self._stabilizers[target]="X"
+            self._inducedNoise[control]="Y"
+            self._inducedNoise[target]="X"
         elif pauliStr=="XY":
-            self._stabilizers[control]="Y"
-            self._stabilizers[target]="Z"
+            self._inducedNoise[control]="Y"
+            self._inducedNoise[target]="Z"
         elif pauliStr=="YX":
-            self._stabilizers[control]="Y"
-            self._stabilizers[target]="I"
+            self._inducedNoise[control]="Y"
+            self._inducedNoise[target]="I"
         elif pauliStr=="XZ":
-            self._stabilizers[control]="Y"
-            self._stabilizers[target]="Y"
+            self._inducedNoise[control]="Y"
+            self._inducedNoise[target]="Y"
         elif pauliStr=="YZ":
-            self._stabilizers[control]="X"
-            self._stabilizers[target]="Y"
+            self._inducedNoise[control]="X"
+            self._inducedNoise[target]="Y"
         elif pauliStr=="ZY":
-            self._stabilizers[control]="I"
-            self._stabilizers[target]="Y"        
+            self._inducedNoise[control]="I"
+            self._inducedNoise[target]="Y"        
                 
     def evolve_CZ(self, control, target):
         pass
 
     def evolve_H(self, qubit):
-        if self._stabilizers[qubit]=="X":
-            self._stabilizers[qubit]="Z"
-        elif self._stabilizers[qubit]=="Z":
-            self._stabilizers[qubit]="X"
+        if self._inducedNoise[qubit]=="X":
+            self._inducedNoise[qubit]="Z"
+        elif self._inducedNoise[qubit]=="Z":
+            self._inducedNoise[qubit]="X"
 
 
     def evolve_P(self, qubit):
-        if self._stabilizers[qubit]=="X":
-            self._stabilizers[qubit]="Y"
-        elif self._stabilizers[qubit]=="Y":
-            self._stabilizers[qubit]="X"        
+        if self._inducedNoise[qubit]=="X":
+            self._inducedNoise[qubit]="Y"
+        elif self._inducedNoise[qubit]=="Y":
+            self._inducedNoise[qubit]="X"        
 
 
-    def evolve_X(self, qubit):
-        pass
+    def append_X(self, qubit):
+        if self._inducedNoise[qubit]=="I":
+            self._inducedNoise[qubit]="X"
+        elif self._inducedNoise[qubit]=="X":
+            self._inducedNoise[qubit]="I"
+        elif self._inducedNoise[qubit]=="Y":
+            self._inducedNoise[qubit]="Z"
+        elif self._inducedNoise[qubit]=="Z":
+            self._inducedNoise[qubit]="Y"
 
 
-    def evolve_Y(self,qubit):
-        pass
+    def append_Y(self,qubit):
+        if self._inducedNoise[qubit]=="I":
+            self._inducedNoise[qubit]="Y"
+        elif self._inducedNoise[qubit]=="X":
+            self._inducedNoise[qubit]="Z"
+        elif self._inducedNoise[qubit]=="Y":
+            self._inducedNoise[qubit]="I"
+        elif self._inducedNoise[qubit]=="Z":
+            self._inducedNoise[qubit]="X"
+        
 
 
-    def evolve_Z(self,qubit):
-        pass
+    def append_Z(self,qubit):
+        if self._inducedNoise[qubit]=="I":
+            self._inducedNoise[qubit]="Z"
+        elif self._inducedNoise[qubit]=="X":
+            self._inducedNoise[qubit]="Y"
+        elif self._inducedNoise[qubit]=="Y":
+            self._inducedNoise[qubit]="X"
+        elif self._inducedNoise[qubit]=="Z":
+            self._inducedNoise[qubit]="I"
 
 
     def evolve_all(self):
@@ -246,12 +268,6 @@ class PauliTracer:
                     self.evolve_H(gate._qubitindex)
                 elif gate._name=="P":
                     self.evolve_P(gate._qubitindex)
-                elif gate._name=="X":
-                    self.evolve_X(gate._qubitindex)
-                elif gate._name=="Y":
-                    self.evolve_Y(gate._qubitindex)
-                elif gate._name=="Z":
-                    self.evolve_Z(gate._qubitindex)
             elif isinstance(gate, TwoQGate):
                 if gate._name=="CNOT":
                     self.evolve_CNOT(gate._control, gate._target)
@@ -259,13 +275,15 @@ class PauliTracer:
                     self.evolve_CZ(gate._control, gate._target)
             elif isinstance(gate, pauliNoise):
                 if gate._noisetype==1:
-                    self.evolve_X(gate._qubitindex)
+                    self.append_X(gate._qubitindex)
                 elif gate._noisetype==2:
-                    self.evolve_Y(gate._qubitindex)
+                    self.append_Y(gate._qubitindex)
                 elif gate._noisetype==3:
-                    self.evolve_Z(gate._qubitindex)
+                    self.append_Z(gate._qubitindex)
             elif isinstance(gate, Measurement):
                 pass
+
+
 
 
 #Test
