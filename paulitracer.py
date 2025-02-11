@@ -78,6 +78,7 @@ class CliffordCircuit:
         self._gatelists=[]
         self._index_to_noise={}
         self._shownoise=False
+        self._syndromeErrorTable={}
 
 
     def get_qubit_num(self):
@@ -312,6 +313,20 @@ class PauliTracer:
         self._inducedNoise=["I"]*circuit._qubit_num
         self._measuredError={}
         self._circuit=circuit
+        self._dataqubits=[i for i in range(circuit._qubit_num)]
+        self._syndromequbits=[]
+
+
+    def set_dataqubits(self, dataqubits):
+        self._dataqubits=dataqubits
+        for i in range(self._circuit._qubit_num):
+            if i not in dataqubits:
+                self._syndromequbits.append(i)  
+
+
+    def get_dataqubits(self):
+        return self._dataqubits
+
 
     def get_inducedNoise(self):
         return self._inducedNoise
@@ -475,6 +490,10 @@ class OneFaultFTVerifier:
         self._totalMeas=pauliTracer.get_totalMeas()
         self._finaltableX={}
         self._finaltableZ={}       
+        self._syndromeErrorTable={}
+        self._filterdsyndromeErrorTable={}
+        self._dataqubits=pauliTracer.get_dataqubits()
+
 
     def generate_table(self):
         for i in range(self._totalnoise):
@@ -488,14 +507,68 @@ class OneFaultFTVerifier:
             self._pauliTracer.evolve_all()
             self._finaltableZ[i]=(self._pauliTracer.get_measuredError(), self._pauliTracer.get_inducedNoise())
 
+
+    def transform_table(self,measuredError,inducedNoise):
+        table={}
+        for i in range(self._totalMeas):
+            if measuredError[i]=="X":
+                table[i]=1
+            elif measuredError[i]=="Y":
+                table[i]=1
+            else:
+                table[i]=0
+        inducedNoiseStr=""
+        for i in range(self._pauliTracer.get_qubit_num()):  
+            if i in self._dataqubits:
+                inducedNoiseStr+=inducedNoise[i]
+        table["inducedNoise"]=inducedNoiseStr
+        return table
+
+    
+    def transform_table_unique(self):
+        for i in range(self._totalnoise):
+            tmptable=self.transform_table(self._finaltableX[i][0], self._finaltableX[i][1])
+            syndromeString=""
+            for j in range(self._totalMeas):
+                syndromeString+=str(tmptable[j])
+
+            self._syndromeErrorTable["n"+str(i)+":X"]=(syndromeString,tmptable["inducedNoise"])
+
+
+    def print_unique_table(self):
+        print("Unique table")
+
+        for key in self._syndromeErrorTable:
+            print(key, self._syndromeErrorTable[key][0], self._syndromeErrorTable[key][1])
+
+        print("\n") 
+
+
+    def filter_table(self):
+        for key in self._syndromeErrorTable:
+            if self._syndromeErrorTable[key][0][0]=='0':
+                if self._syndromeErrorTable[key][0][1]==self._syndromeErrorTable[key][0][3]:
+                    if self._syndromeErrorTable[key][0][2]==self._syndromeErrorTable[key][0][4]:               
+                        self._filterdsyndromeErrorTable[key]=self._syndromeErrorTable[key]
+
+
+    def print_filter_table(self):
+        print("Filtered table")
+
+        for key in self._filterdsyndromeErrorTable:
+            print(key, self._filterdsyndromeErrorTable[key][0], self._filterdsyndromeErrorTable[key][1])
+
+        print("\n")
+
+
     def print_table(self):
         print("X error table")
         for i in range(self._totalnoise):
-            print(i, self._finaltableX[i])
+            print("n"+str(i)+"=X", self.transform_table(self._finaltableX[i][0], self._finaltableX[i][1]))
 
         print("\nZ error table")
         for i in range(self._totalnoise):
-            print(i, self._finaltableZ[i])
+            print("n"+str(i)+"=Z", self.transform_table(self._finaltableZ[i][0], self._finaltableZ[i][1]))
 
         print("\n")
 
@@ -508,13 +581,18 @@ if __name__ == "__main__":
     circuit=CliffordCircuit(2)
     circuit.read_circuit_from_file("code/repetition")
     circuit.setShowNoise(True)
-    tracer=PauliTracer(circuit)
-
+    tracer=PauliTracer(circuit) 
+    tracer.set_dataqubits([1,2,3])
     #circuit.set_noise_type(0, 1)
     ftverifier=OneFaultFTVerifier(tracer)
     ftverifier.generate_table()
+    ftverifier.transform_table_unique()
+    #ftverifier.print_table()
+    ftverifier.print_unique_table()
 
-    ftverifier.print_table()
+    ftverifier.filter_table()
+    ftverifier.print_filter_table()
+
     #print(circuit.get_yquant_latex())
     #tracer=PauliTracer(circuit)
     #tracer.evolve_all()   
