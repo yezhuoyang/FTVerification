@@ -79,6 +79,16 @@ class CliffordCircuit:
         self._index_to_noise={}
         self._shownoise=False
 
+
+    def get_qubit_num(self):
+        return self._qubit_num
+    
+    def get_totalnoise(self):
+        return self._totalnoise
+
+    def get_totalMeas(self):
+        return self._totalMeas
+
     '''
     Read the circuit from a file
     Example of the file:
@@ -296,13 +306,39 @@ class CliffordCircuit:
 
 
 
-
 #Trace the pauli frame according to the circuit
 class PauliTracer:
-    def __init__(self, circuit):
+    def __init__(self, circuit:CliffordCircuit):
         self._inducedNoise=["I"]*circuit._qubit_num
         self._measuredError={}
         self._circuit=circuit
+
+    def get_inducedNoise(self):
+        return self._inducedNoise
+
+
+    def get_measuredError(self):
+        return self._measuredError
+
+
+    def get_qubit_num(self):
+        return self._circuit.get_qubit_num()
+    
+    def get_totalnoise(self):
+        return self._circuit.get_totalnoise()
+
+    def get_totalMeas(self):
+        return self._circuit.get_totalMeas()
+
+
+    def set_noise_type(self, noiseindex, noisetype):
+        self._circuit.set_noise_type(noiseindex, noisetype)
+
+
+    def reset(self):
+        self._inducedNoise=["I"]*circuit._qubit_num 
+        self._measuredError={}      
+        self._circuit.reset_noise_type()
 
 
     def set_initial_inducedNoise(self, inducedNoise):
@@ -433,39 +469,53 @@ class PauliTracer:
 
 class OneFaultFTVerifier:
 
-    def __init__(self):
-        pass
+    def __init__(self,pauliTracer:PauliTracer):
+        self._pauliTracer=pauliTracer
+        self._totalnoise=pauliTracer.get_totalnoise()
+        self._totalMeas=pauliTracer.get_totalMeas()
+        self._finaltableX={}
+        self._finaltableZ={}       
 
+    def generate_table(self):
+        for i in range(self._totalnoise):
+            self._pauliTracer.reset()
+            self._pauliTracer.set_noise_type(i, 1)
+            self._pauliTracer.evolve_all()
+            self._finaltableX[i]=(self._pauliTracer.get_measuredError(), self._pauliTracer.get_inducedNoise())
+        for i in range(self._totalnoise):
+            self._pauliTracer.reset()
+            self._pauliTracer.set_noise_type(i, 3)
+            self._pauliTracer.evolve_all()
+            self._finaltableZ[i]=(self._pauliTracer.get_measuredError(), self._pauliTracer.get_inducedNoise())
+
+    def print_table(self):
+        print("X error table")
+        for i in range(self._totalnoise):
+            print(i, self._finaltableX[i])
+
+        print("\nZ error table")
+        for i in range(self._totalnoise):
+            print(i, self._finaltableZ[i])
+
+        print("\n")
 
 
 
 
 #Test
 if __name__ == "__main__":
-    #circuit=CliffordCircuit(2)
-    #circuit.add_cnot(0,1)
 
-    #circuit.add_measurement(0)   
-    #circuit.add_measurement(1)
-
-    #circuit.setShowNoise(True)
-    #print(circuit)
-    #circuit.set_noise_type(0, 1)
-
-    #tracer=PauliTracer(2, circuit)
-    #tracer.evolve_all()    
-    #tracer.print_measuredError()   
-
-
-    #tracer=PauliTracer(3, circuit)
-    #tracer.set_initial_stabilizers(["X", "I", "I"])
-    #tracer.evolve_all()
     circuit=CliffordCircuit(2)
     circuit.read_circuit_from_file("code/repetition")
     circuit.setShowNoise(True)
-    #circuit.set_noise_type(0, 1)
+    tracer=PauliTracer(circuit)
 
-    print(circuit.get_yquant_latex())
+    #circuit.set_noise_type(0, 1)
+    ftverifier=OneFaultFTVerifier(tracer)
+    ftverifier.generate_table()
+
+    ftverifier.print_table()
+    #print(circuit.get_yquant_latex())
     #tracer=PauliTracer(circuit)
     #tracer.evolve_all()   
     #tracer.print_measuredError()   
