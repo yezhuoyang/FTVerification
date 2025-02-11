@@ -319,9 +319,8 @@ class CliffordCircuit:
 
 
 
-
-
 #Trace the pauli frame according to the circuit
+#The pauli tracer can propagate pauli error(To verify fault-tolerance) as well as evolve stabilizer(To verify semantic correctness)
 class PauliTracer:
     def __init__(self, circuit:CliffordCircuit):
         self._inducedNoise=["I"]*circuit._qubit_num
@@ -330,6 +329,16 @@ class PauliTracer:
         self._dataqubits=[i for i in range(circuit._qubit_num)]
         self._syndromequbits=[]
         self._parityMatchGroup=circuit.get_parityMatchGroup()
+
+        #Store the initial stabilizers
+        self._initStabilizers=["Z"]*circuit._qubit_num
+        self._phasefactor=1
+
+
+    def set_initStabilizers(self, initStabilizers,phasefactor=1):
+        self._initStabilizers=initStabilizers
+        self._phasefactor=phasefactor
+
 
     def get_parityMatchGroup(self):
         return self._parityMatchGroup
@@ -387,7 +396,8 @@ class PauliTracer:
         print("\n")
 
 
-    def evolve_CNOT(self, control, target):
+    #Propagate pauli noise by CNOT gate
+    def prop_CNOT(self, control, target):
         pauliStr=self._inducedNoise[control]+self._inducedNoise[target]
         if pauliStr=="XI":
             self._inducedNoise[control]="X"
@@ -422,24 +432,44 @@ class PauliTracer:
         elif pauliStr=="ZY":
             self._inducedNoise[control]="I"
             self._inducedNoise[target]="Y"        
-                
+
+    def evolve_CNOT(self, control, target):
+        pass
+
+
+    #Propagate pauli noise by CZ gate
+    def prop_CZ(self, control, target):
+        pass
+
     def evolve_CZ(self, control, target):
         pass
 
-    def evolve_H(self, qubit):
+
+    #Propagate pauli noise by H gate
+    def prop_H(self, qubit):
         if self._inducedNoise[qubit]=="X":
             self._inducedNoise[qubit]="Z"
         elif self._inducedNoise[qubit]=="Z":
             self._inducedNoise[qubit]="X"
 
 
-    def evolve_P(self, qubit):
+    def evolve_H(self, qubit):
+        pass
+
+
+    #Propagate pauli noise by P gate
+    def prop_P(self, qubit):
         if self._inducedNoise[qubit]=="X":
             self._inducedNoise[qubit]="Y"
         elif self._inducedNoise[qubit]=="Y":
             self._inducedNoise[qubit]="X"        
 
 
+    def evolve_P(self, qubit):
+        pass
+
+
+    #Add new pauli X noise to the induced noise
     def append_X(self, qubit):
         if self._inducedNoise[qubit]=="I":
             self._inducedNoise[qubit]="X"
@@ -451,6 +481,11 @@ class PauliTracer:
             self._inducedNoise[qubit]="Y"
 
 
+    def evolve_X(self, qubit):
+        pass
+
+
+    #Add new pauli Y noise to the induced noise
     def append_Y(self,qubit):
         if self._inducedNoise[qubit]=="I":
             self._inducedNoise[qubit]="Y"
@@ -460,9 +495,13 @@ class PauliTracer:
             self._inducedNoise[qubit]="I"
         elif self._inducedNoise[qubit]=="Z":
             self._inducedNoise[qubit]="X"
-        
 
 
+    def evolve_Y(self, qubit):
+        pass
+
+
+    #Add new pauli Z noise to the induced noise
     def append_Z(self,qubit):
         if self._inducedNoise[qubit]=="I":
             self._inducedNoise[qubit]="Z"
@@ -474,7 +513,35 @@ class PauliTracer:
             self._inducedNoise[qubit]="I"
 
 
-    def evolve_all(self):
+    def evolve_Z(self, qubit):
+        pass
+
+    def prop_all(self):
+        for gate in self._circuit._gatelists:
+            if isinstance(gate, SingeQGate):
+                if gate._name=="H":
+                    self.prop_H(gate._qubitindex)
+                elif gate._name=="P":
+                    self.prop_P(gate._qubitindex)
+            elif isinstance(gate, TwoQGate):
+                if gate._name=="CNOT":
+                    self.prop_CNOT(gate._control, gate._target)
+                elif gate._name=="CZ":
+                    self.prop_CZ(gate._control, gate._target)
+            elif isinstance(gate, pauliNoise):
+                if gate._noisetype==1:
+                    self.append_X(gate._qubitindex)
+                elif gate._noisetype==2:
+                    self.append_Y(gate._qubitindex)
+                elif gate._noisetype==3:
+                    self.append_Z(gate._qubitindex)
+            elif isinstance(gate,Reset):
+                self._inducedNoise[gate._qubitindex]="I"
+            elif isinstance(gate, Measurement):
+                self._measuredError[gate._measureindex]=self._inducedNoise[gate._qubitindex]
+
+
+    def evolve_stabilizer(self):
         for gate in self._circuit._gatelists:
             if isinstance(gate, SingeQGate):
                 if gate._name=="H":
@@ -488,15 +555,17 @@ class PauliTracer:
                     self.evolve_CZ(gate._control, gate._target)
             elif isinstance(gate, pauliNoise):
                 if gate._noisetype==1:
-                    self.append_X(gate._qubitindex)
+                    self.evolve_X(gate._qubitindex)
                 elif gate._noisetype==2:
-                    self.append_Y(gate._qubitindex)
+                    self.evolve_Y(gate._qubitindex)
                 elif gate._noisetype==3:
-                    self.append_Z(gate._qubitindex)
+                    self.evolve_Z(gate._qubitindex)
             elif isinstance(gate,Reset):
-                self._inducedNoise[gate._qubitindex]="I"
+                continue
             elif isinstance(gate, Measurement):
-                self._measuredError[gate._measureindex]=self._inducedNoise[gate._qubitindex]
+                continue
+
+
 
 
 rep_decoder={"01111":"IXI","00101":"IIX","01010":"XII"}
@@ -542,7 +611,8 @@ class OneFaultFTVerifier:
             self._pauliTracer.evolve_all()
             self._finaltableZ[i]=(self._pauliTracer.get_measuredError(), self._pauliTracer.get_inducedNoise())
 
-
+    #Transform the table from a dictionary to with many values to a dictionary with two values, just syndrome and the inducde noise
+    #Use a bit string of 0,1 to represent the syndrome and a bit string of X,Y,Z to represent the induced noise 
     def transform_table(self,measuredError,inducedNoise):
         table={}
         for i in range(self._totalMeas):
