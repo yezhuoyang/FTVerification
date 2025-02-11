@@ -1,0 +1,7 @@
+cnot 1 2
+cnot 1 3
+cnot 1 0
+M 0
+cnot 1 4
+
+

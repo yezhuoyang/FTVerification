@@ -47,8 +47,18 @@ class pauliNoise:
 
 
 class Measurement:
+    def __init__(self,measureindex ,qubitindex):
+        self._name="M"+str(measureindex)
+        self._qubitindex = qubitindex
+        self._measureindex=measureindex
+
+    def __str__(self):
+        return self._name + "[" + str(self._qubitindex) + "]"
+
+
+class Reset:
     def __init__(self, qubitindex):
-        self._name="M"
+        self._name="R"
         self._qubitindex = qubitindex
 
     def __str__(self):
@@ -63,6 +73,7 @@ class CliffordCircuit:
     def __init__(self, qubit_num):
         self._qubit_num = qubit_num
         self._totalnoise=0
+        self._totalMeas=0
         self._totalgates=0
         self._gatelists=[]
         self._index_to_noise={}
@@ -140,9 +151,14 @@ class CliffordCircuit:
         self._gatelists.append(pauliNoise(self._totalnoise, qubit))
         self._index_to_noise[self._totalnoise]=self._gatelists[-1]
         self._totalnoise+=1   
-        self._gatelists.append(Measurement(qubit))
+        self._gatelists.append(Measurement(self._totalMeas,qubit))
+        self._totalMeas+=1
 
     
+    def add_reset(self, qubit):
+        self._gatelists.append(Reset(qubit))
+
+
     def setShowNoise(self, show):
         self._shownoise=show
 
@@ -163,6 +179,7 @@ class CliffordCircuit:
 class PauliTracer:
     def __init__(self, qubit_num, circuit):
         self._inducedNoise=["I"]*qubit_num
+        self._measuredError={}
         self._circuit=circuit
 
 
@@ -172,6 +189,11 @@ class PauliTracer:
 
     def print_inducedNoise(self):
         print(self._inducedNoise)
+
+    def print_measuredError(self):
+        for key in self._measuredError:
+            print(key, self._measuredError[key],sep=", ")
+        print("\n")
 
 
     def evolve_CNOT(self, control, target):
@@ -280,26 +302,39 @@ class PauliTracer:
                     self.append_Y(gate._qubitindex)
                 elif gate._noisetype==3:
                     self.append_Z(gate._qubitindex)
+            elif isinstance(gate,Reset):
+                self._inducedNoise[gate._qubitindex]="I"
             elif isinstance(gate, Measurement):
-                pass
+                self._measuredError[gate._measureindex]=self._inducedNoise[gate._qubitindex]
+
+
+
+class OneFaultFTVerifier:
+
+    def __init__(self):
+        pass
+
+
+
 
 
 
 
 #Test
 if __name__ == "__main__":
-    circuit=CliffordCircuit(3)
-    circuit.add_hadamard(0)
+    circuit=CliffordCircuit(2)
     circuit.add_cnot(0,1)
-    #circuit.add_cnot(1,2)
-    circuit.add_measurement(2)
+
+    circuit.add_measurement(0)   
+    circuit.add_measurement(1)
+
     circuit.setShowNoise(True)
     print(circuit)
+    circuit.set_noise_type(0, 1)
 
-    circuit.set_noise_type(2, 1)
-    circuit.set_noise_type(3, 2)
-    circuit.reset_noise_type()
-    circuit.show_all_noise()
+    tracer=PauliTracer(2, circuit)
+    tracer.evolve_all()    
+    tracer.print_measuredError()   
 
 
     #tracer=PauliTracer(3, circuit)
