@@ -79,7 +79,16 @@ class CliffordCircuit:
         self._index_to_noise={}
         self._shownoise=False
         self._syndromeErrorTable={}
+        #Store the repeat match group
+        #For example, if we require M0=M1, M2=M3, then the match group is [[0,1],[2,3]]
+        self._parityMatchGroup=[]
 
+
+    def set_parityMatchGroup(self, parityMatchGroup):
+        self._parityMatchGroup=parityMatchGroup
+
+    def get_parityMatchGroup(self):
+        return self._parityMatchGroup
 
     def get_qubit_num(self):
         return self._qubit_num
@@ -320,6 +329,10 @@ class PauliTracer:
         self._circuit=circuit
         self._dataqubits=[i for i in range(circuit._qubit_num)]
         self._syndromequbits=[]
+        self._parityMatchGroup=circuit.get_parityMatchGroup()
+
+    def get_parityMatchGroup(self):
+        return self._parityMatchGroup
 
 
     def set_dataqubits(self, dataqubits):
@@ -488,8 +501,14 @@ class PauliTracer:
 
 rep_decoder={"01111":"IXI","00101":"IIX","01010":"XII"}
 
+
+rep_paritygroup=[[0],[1,2],[3,4]]
+
+
 steane_decoder={"000001":"XIIIIII","000010":"IXIIIII","000011":"IIXIIII","000100":"IIIXIII","000101":"IIIIXII","000110":"IIIIIXI","000111":"IIIIIIX",
                 "001000":"ZIIIIII","010000":"IZIIIII","011000":"IIZIIII","100000":"IIIZIII","101000":"IIIIZII","110000":"IIIIIZI","111000":"IIIIIIZ"}
+
+steane_paritygroup=[[0,1],[2,3],[4,5],[6,7],[8,9],[10,11]]
 
 
 
@@ -508,6 +527,7 @@ class OneFaultFTVerifier:
         self._syndromeErrorTable={}
         self._filterdsyndromeErrorTable={}
         self._dataqubits=pauliTracer.get_dataqubits()
+        self._parityMatchGroup=pauliTracer.get_parityMatchGroup()
 
 
     def generate_table(self):
@@ -567,12 +587,27 @@ class OneFaultFTVerifier:
         print("\n") 
 
 
+
+
+    def filter_string_by_parity(self, syndromeString):
+        '''
+        Filter the syndrome string according to the parity match group
+        '''
+        bitlist=[int(x) for x in syndromeString]
+        for group in self._parityMatchGroup:
+            parity = sum(bitlist[i] for i in group) % 2
+            if parity == 1:
+                return False
+        return True
+
+
+    '''
+    Filter the table based on the parity match group
+    '''
     def filter_table(self):
         for key in self._syndromeErrorTable:
-            if self._syndromeErrorTable[key][0][0]=='0':
-                if self._syndromeErrorTable[key][0][1]==self._syndromeErrorTable[key][0][3]:
-                    if self._syndromeErrorTable[key][0][2]==self._syndromeErrorTable[key][0][4]:               
-                        self._filterdsyndromeErrorTable[key]=self._syndromeErrorTable[key]
+            if self.filter_string_by_parity(self._syndromeErrorTable[key][0]):
+                self._filterdsyndromeErrorTable[key]=self._syndromeErrorTable[key]
 
 
     def print_filter_table(self):
@@ -612,10 +647,11 @@ class OneFaultFTVerifier:
 if __name__ == "__main__":
 
     circuit=CliffordCircuit(2)
-    circuit.read_circuit_from_file("code/steanes1")
+    circuit.read_circuit_from_file("code/repetition")
     circuit.setShowNoise(True)
+    circuit.set_parityMatchGroup(rep_paritygroup)
     tracer=PauliTracer(circuit) 
-    tracer.set_dataqubits([0,1,2,3,4,5,6])
+    tracer.set_dataqubits([1,2,3])
 
 
 
@@ -629,7 +665,7 @@ if __name__ == "__main__":
 
 
     #print(ftverifier.verify_fault_tolerance())
-    print(circuit.get_yquant_latex())
+    #print(circuit.get_yquant_latex())
     #tracer=PauliTracer(circuit)
     #tracer.evolve_all()   
     #tracer.print_measuredError()   
