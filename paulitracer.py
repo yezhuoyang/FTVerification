@@ -234,14 +234,73 @@ class CliffordCircuit:
         return str
 
 
+    def get_yquant_latex(self):
+        """
+        Convert the circuit (stored in self._gatelists) into a yquant LaTeX string.
+        This version simply prints each gate (or noise box) in the order they appear,
+        without grouping or any fancy logic.
+        """
+        lines = []
+        # Begin the yquant environment
+        lines.append("\\begin{yquant}")
+        lines.append("")
+        
+        # Declare qubits and classical bits.
+        # Note: Literal braces in the LaTeX code are escaped by doubling them.
+        lines.append("% -- Qubits and classical bits --")
+        lines.append("qubit {{$\\ket{{q_{{\\idx}}}}$}} q[{}];".format(self._qubit_num))
+        lines.append("cbit {{$c_{{\\idx}} = 0$}} c[{}];".format(self._totalMeas))
+        lines.append("")
+        lines.append("% -- Circuit Operations --")
+        
+        # Process each gate in the order they were added.
+        for gate in self._gatelists:
+            if isinstance(gate, pauliNoise):
+                # Print the noise box only if noise output is enabled.
+                if self._shownoise:
+                    lines.append("[fill=red!80]")
+                    # The following format string produces, e.g.,:
+                    # "box {$n_{8}$} q[2];"
+                    lines.append("box {{$n_{{{}}}$}} q[{}];".format(gate._noiseindex, gate._qubitindex))
+            elif isinstance(gate, TwoQGate):
+                # Two-qubit gate (e.g., CNOT or CZ).
+                if gate._name == "CNOT":
+                    # Note: yquant syntax for a CNOT is: cnot q[target] | q[control];
+                    line = "cnot q[{}] | q[{}];".format(gate._target, gate._control)
+                elif gate._name == "CZ":
+                    line = "cz q[{}] | q[{}];".format(gate._target, gate._control)
+                lines.append(line)
+            elif isinstance(gate, SingeQGate):
+                # Single-qubit gate.
+                if gate._name == "H":
+                    line = "h q[{}];".format(gate._qubitindex)
+
+                lines.append(line)
+            elif isinstance(gate, Measurement):
+                # Measurement is output as three separate lines.
+                lines.append("measure q[{}];".format(gate._qubitindex))
+                lines.append("cnot c[{}] | q[{}];".format(gate._measureindex, gate._qubitindex))
+                lines.append("discard q[{}];".format(gate._qubitindex))
+            elif isinstance(gate, Reset):
+                # Reset is output as an initialization command.
+                lines.append("init {{$\\ket0$}} q[{}];".format(gate._qubitindex))
+            else:
+                continue
+        
+        lines.append("")
+        lines.append("\\end{yquant}")
+        
+        return "\n".join(lines)
+
+
 
 
 
 
 #Trace the pauli frame according to the circuit
 class PauliTracer:
-    def __init__(self, qubit_num, circuit):
-        self._inducedNoise=["I"]*qubit_num
+    def __init__(self, circuit):
+        self._inducedNoise=["I"]*circuit._qubit_num
         self._measuredError={}
         self._circuit=circuit
 
@@ -403,4 +462,12 @@ if __name__ == "__main__":
     #tracer.evolve_all()
     circuit=CliffordCircuit(2)
     circuit.read_circuit_from_file("code/repetition")
-    print(circuit)
+    circuit.setShowNoise(True)
+    #circuit.set_noise_type(0, 1)
+
+    print(circuit.get_yquant_latex())
+    #tracer=PauliTracer(circuit)
+    #tracer.evolve_all()   
+    #tracer.print_measuredError()   
+
+    #print(circuit)
