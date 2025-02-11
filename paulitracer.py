@@ -79,6 +79,69 @@ class CliffordCircuit:
         self._index_to_noise={}
         self._shownoise=False
 
+    '''
+    Read the circuit from a file
+    Example of the file:
+
+    NumberOfQubit 6
+    cnot 1 2
+    cnot 1 3
+    cnot 1 0
+    M 0
+    cnot 1 4
+    cnot 2 4
+    M 4
+    cnot 2 5
+    cnot 3 5
+    M 5
+    R 4
+    R 5
+    cnot 1 4
+    cnot 2 4
+    M 4
+    cnot 2 5
+    cnot 3 5
+    M 5
+
+    '''
+    def read_circuit_from_file(self, filename):
+        with open(filename, 'r') as file:
+            for line in file:
+                line = line.strip()
+                if not line:
+                    continue  # Skip empty lines
+                
+                if line.startswith("NumberOfQubit"):
+                    # Extract the number of qubits
+                    self._qubit_num = int(line.split()[1])
+                else:
+                    # Parse the gate operation
+                    parts = line.split()
+                    gate_type = parts[0]
+                    qubits = list(map(int, parts[1:]))
+                    
+                    if gate_type == "cnot":
+                        self.add_cnot(qubits[0], qubits[1])
+                    elif gate_type == "M":
+                        self.add_measurement(qubits[0])
+                    elif gate_type == "R":
+                        self.add_reset(qubits[0])
+                    elif gate_type == "H":
+                        self.add_hadamard(qubits[0])
+                    elif gate_type == "P":
+                        self.add_phase(qubits[0])
+                    elif gate_type == "CZ":
+                        self.add_cz(qubits[0], qubits[1])
+                    elif gate_type == "X":
+                        self.add_paulix(qubits[0])
+                    elif gate_type == "Y":
+                        self.add_pauliy(qubits[0])
+                    elif gate_type == "Z":
+                        self.add_pauliz(qubits[0])
+                    else:
+                        raise ValueError(f"Unknown gate type: {gate_type}")
+
+
 
     def set_noise_type(self, noiseindex, noisetype):
         self._index_to_noise[noiseindex].set_noisetype(noisetype)
@@ -318,25 +381,26 @@ class OneFaultFTVerifier:
 
 
 
-
-
 #Test
 if __name__ == "__main__":
-    circuit=CliffordCircuit(2)
-    circuit.add_cnot(0,1)
+    #circuit=CliffordCircuit(2)
+    #circuit.add_cnot(0,1)
 
-    circuit.add_measurement(0)   
-    circuit.add_measurement(1)
+    #circuit.add_measurement(0)   
+    #circuit.add_measurement(1)
 
-    circuit.setShowNoise(True)
-    print(circuit)
-    circuit.set_noise_type(0, 1)
+    #circuit.setShowNoise(True)
+    #print(circuit)
+    #circuit.set_noise_type(0, 1)
 
-    tracer=PauliTracer(2, circuit)
-    tracer.evolve_all()    
-    tracer.print_measuredError()   
+    #tracer=PauliTracer(2, circuit)
+    #tracer.evolve_all()    
+    #tracer.print_measuredError()   
 
 
     #tracer=PauliTracer(3, circuit)
     #tracer.set_initial_stabilizers(["X", "I", "I"])
     #tracer.evolve_all()
+    circuit=CliffordCircuit(2)
+    circuit.read_circuit_from_file("code/repetition")
+    print(circuit)
