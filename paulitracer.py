@@ -616,7 +616,8 @@ class PauliTracer:
 class WSampler():
     def __init__(self, circuit:CliffordCircuit):
         self._inducedNoise=["I"]*circuit._qubit_num
-        self._measuredError={}     
+        self._measuredError={}
+        self._qubit_num=circuit._qubit_num     
         self._circuit=circuit
         self._totalnoise=circuit.get_totalnoise()
         self._tracer=PauliTracer(circuit)
@@ -627,7 +628,7 @@ class WSampler():
 
     def set_dataqubits(self, dataqubits):
         self._tracer.set_dataqubits(dataqubits)
-
+        self._dataqubits=dataqubits
 
     #Sample noise with weight K
     def sample_Xnoise(self,W):
@@ -641,7 +642,28 @@ class WSampler():
     def calc_sample_result(self):
         self._tracer.prop_all()
         self._measuredError=self._tracer.get_measuredError()
+        tmp_detection_events=[]
+        for i in self._measuredError.keys():
+            if self._measuredError[i]=="X" or self._measuredError[i]=="Y":
+                tmp_detection_events.append(False)
+            else:
+                tmp_detection_events.append(True)
 
+        #The parity of the observable
+        #TODO: User specify the observable
+        tmp_observable_flips=[]
+        
+        for i in range(self._qubit_num):
+            print(i)
+            if i in self._dataqubits:
+                if self._tracer._inducedNoise[i]=="X" or self._tracer._inducedNoise[i]=="Y":
+                    tmp_observable_flips.append(False)
+                else:
+                    tmp_observable_flips.append(True)
+                break
+        
+        return tmp_detection_events, tmp_observable_flips
+         
 
 
     #Propagate the error, and return if there is a logical error
@@ -846,6 +868,7 @@ if __name__ == "__main__":
     sampler.sample_Xnoise(2)
 
 
-    sampler.calc_sample_result()
+    detection_events, observable_flips=sampler.calc_sample_result()
 
-    print(sampler._measuredError)
+    print(detection_events)
+    print(observable_flips)
