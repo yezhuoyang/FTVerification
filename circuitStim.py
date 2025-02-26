@@ -109,19 +109,13 @@ if __name__ == "__main__":
     circuit.add_measurement(0)
     circuit.add_observable()
 
-    print(circuit._circuit)
+    #print(circuit._circuit)
 
 
     sampler = circuit.compile_sampler()
     num_shots = 1
 
     detection_events, observable_flips = sampler.sample(num_shots, separate_observables=True)
-
-    print("------------------------------------------------------------")
-    print(detection_events)
-
-    print("------------------------------------------------------------")
-    print(observable_flips)
 
 
 

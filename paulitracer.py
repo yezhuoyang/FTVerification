@@ -654,6 +654,63 @@ class PauliTracer:
 
 
 
+
+
+class NaiveSampler():
+    def __init__(self, circuit:CliffordCircuit):
+        self._qubit_num=circuit._qubit_num     
+        self._circuit=circuit
+        self._totalnoise=circuit.get_totalnoise()
+
+        self._logical_error_rate=0
+
+        self._dataqubits=None
+        self._syndromequbits=None
+        self._stimcircuit=None
+
+        self._shots=10
+
+    def set_shots(self, shots):
+        self._shots=shots
+
+
+    def calc_logical_error_rate(self):
+        self._stimcircuit=self._circuit.get_stim_circuit()
+
+        sampler = self._stimcircuit.compile_detector_sampler()
+       
+        detector_error_model = self._stimcircuit.detector_error_model(decompose_errors=True)
+
+        num_errors = 0
+
+        for i in range(self._shots):
+            detection_events, observable_flips = sampler.sample(1, separate_observables=True)
+            #detection_events, observable_flips = sampler.sample(self._shots, separate_observables=True)
+            # Configure a decoder using the circuit.
+            #print(detection_events)
+            #print(observable_flips)
+            
+            
+            matcher = pymatching.Matching.from_detector_error_model(detector_error_model)
+            predictions = matcher.decode_batch(detection_events)
+            #print(predictions)
+    
+        
+            actual_for_shot = observable_flips[0]
+            predicted_for_shot = predictions[0]
+            if not np.array_equal(actual_for_shot, predicted_for_shot):
+                num_errors += 1
+        
+        self._logical_error_rate=num_errors/self._shots
+
+        return self._logical_error_rate
+
+
+    
+
+
+
+
 class WSampler():
     def __init__(self, circuit:CliffordCircuit):
         self._inducedNoise=["I"]*circuit._qubit_num
@@ -672,6 +729,7 @@ class WSampler():
         self._syndromequbits=None
         self._stimcircuit=None
 
+        self._detector_error_model=None
         self._shots=10
 
     def set_shots(self, shots):
@@ -724,9 +782,8 @@ class WSampler():
 
         #print(self._stimcircuit)
 
-
-        detector_error_model= self._stimcircuit.detector_error_model(decompose_errors=True)
-        return detector_error_model
+        self._detector_error_model= self._stimcircuit.detector_error_model(decompose_errors=True)
+       
 
 
 
@@ -737,8 +794,7 @@ class WSampler():
         #print(detection_events)
         #print(observable_flips)
 
-        detector_error_model = self.construct_detector_model()
-        matcher = pymatching.Matching.from_detector_error_model(detector_error_model)
+        matcher = pymatching.Matching.from_detector_error_model(self._detector_error_model)
         predictions = matcher.decode_batch(detection_events)
 
         if not np.array_equal(observable_flips[0],predictions[0]):
@@ -963,10 +1019,10 @@ if __name__ == "__main__":
     #print(circuit)
 
 
+    
     circuit=CliffordCircuit(2)
     circuit.set_error_rate(0.001)
     circuit.read_circuit_from_file("code/repetition")
-
 
 
     
@@ -975,12 +1031,23 @@ if __name__ == "__main__":
     sampler=WSampler(circuit)
     sampler.set_shots(20)
     sampler.set_dataqubits([1,2,3])
-    
+    sampler.construct_detector_model()
 
     sampler.calc_logical_error_rate()
     print(sampler._logical_error_distribution)
 
     print(sampler._logical_error_rate)
+    
+
+
+    Nsampler=NaiveSampler(circuit)
+    Nsampler.set_shots(200)
+    Nsampler.calc_logical_error_rate()
+    print(Nsampler._logical_error_rate)
+    
+
+
+
     #sampler.sample_Xnoise(1)
     
     #print(sampler.has_logical_error())
