@@ -1,4 +1,6 @@
-
+import stim
+import numpy as np
+import pymatching
 
 oneQGate_ = ["H", "P", "X", "Y", "Z"]
 oneQGateindices={"H":0, "P":1, "X":2, "Y":3, "Z":4}
@@ -378,6 +380,13 @@ class PauliTracer:
         self._initStabilizers=["Z"]*circuit._qubit_num
         self._phasefactor=1
 
+        self._errorrate=0.1
+        self._stimcircuit=stim.Circuit()
+
+
+    def set_errorrate(self, errorrate):
+        self._errorrate=errorrate
+
 
     def set_initStabilizers(self, initStabilizers,phasefactor=1):
         self._initStabilizers=initStabilizers
@@ -425,6 +434,7 @@ class PauliTracer:
         self._inducedNoise=["I"]*circuit._qubit_num 
         self._measuredError={}      
         self._circuit.reset_noise_type()
+        self._stimcircuit=stim.Circuit()
 
 
     def set_initial_inducedNoise(self, inducedNoise):
@@ -565,24 +575,40 @@ class PauliTracer:
             if isinstance(gate, SingeQGate):
                 if gate._name=="H":
                     self.prop_H(gate._qubitindex)
+                    self._stimcircuit.append("H", [gate._qubitindex])
                 elif gate._name=="P":
                     self.prop_P(gate._qubitindex)
+                    self._stimcircuit.append("S", [gate._qubitindex])
             elif isinstance(gate, TwoQGate):
                 if gate._name=="CNOT":
                     self.prop_CNOT(gate._control, gate._target)
+                    self._stimcircuit.append("CNOT", [gate._control, gate._target])
                 elif gate._name=="CZ":
                     self.prop_CZ(gate._control, gate._target)
+                    self._stimcircuit.append("CZ", [gate._control, gate._target])
             elif isinstance(gate, pauliNoise):
                 if gate._noisetype==1:
                     self.append_X(gate._qubitindex)
+                    self._stimcircuit.append("X_ERROR", [gate._qubitindex],self._errorrate)
                 elif gate._noisetype==2:
                     self.append_Y(gate._qubitindex)
+                    self._stimcircuit.append("Y_ERROR", [gate._qubitindex],self._errorrate)
                 elif gate._noisetype==3:
                     self.append_Z(gate._qubitindex)
+                    self._stimcircuit.append("Z_ERROR", [gate._qubitindex],self._errorrate)
+                else:
+                    self._stimcircuit.append("X_ERROR", [gate._qubitindex],self._errorrate)                    
             elif isinstance(gate,Reset):
                 self._inducedNoise[gate._qubitindex]="I"
+                self._stimcircuit.append("R", [gate._qubitindex])
             elif isinstance(gate, Measurement):
                 self._measuredError[gate._measureindex]=self._inducedNoise[gate._qubitindex]
+                self._stimcircuit.append("M", [gate._qubitindex])
+                self._stimcircuit.append("DETECTOR", [stim.target_rec(-1)])
+
+
+    def get_stim_circuit(self):
+        return self._stimcircuit
 
 
     def evolve_stabilizer(self):
@@ -612,7 +638,6 @@ class PauliTracer:
 
 
 
-
 class WSampler():
     def __init__(self, circuit:CliffordCircuit):
         self._inducedNoise=["I"]*circuit._qubit_num
@@ -625,6 +650,7 @@ class WSampler():
         self._observable_flips=[]
         self._dataqubits=None
         self._syndromequbits=None
+        self._stimcircuit=None
 
     def set_dataqubits(self, dataqubits):
         self._tracer.set_dataqubits(dataqubits)
@@ -645,9 +671,9 @@ class WSampler():
         tmp_detection_events=[]
         for i in self._measuredError.keys():
             if self._measuredError[i]=="X" or self._measuredError[i]=="Y":
-                tmp_detection_events.append(False)
-            else:
                 tmp_detection_events.append(True)
+            else:
+                tmp_detection_events.append(False)
 
         #The parity of the observable
         #TODO: User specify the observable
@@ -657,13 +683,26 @@ class WSampler():
             print(i)
             if i in self._dataqubits:
                 if self._tracer._inducedNoise[i]=="X" or self._tracer._inducedNoise[i]=="Y":
-                    tmp_observable_flips.append(False)
-                else:
                     tmp_observable_flips.append(True)
+                else:
+                    tmp_observable_flips.append(False)
                 break
         
-        return tmp_detection_events, tmp_observable_flips
+        return [tmp_detection_events], [tmp_observable_flips]
          
+
+    def construct_detector_model(self):
+        self._stimcircuit=self._tracer.get_stim_circuit()
+
+        self._stimcircuit.append("M", [self._dataqubits[0]], 0)
+        self._stimcircuit.append("OBSERVABLE_INCLUDE", [stim.target_rec(-1)], 0)
+
+        print(self._stimcircuit)
+
+
+        detector_error_model= self._stimcircuit.detector_error_model(decompose_errors=True)
+        return detector_error_model
+
 
 
     #Propagate the error, and return if there is a logical error
@@ -865,10 +904,33 @@ if __name__ == "__main__":
     tracer.set_dataqubits([1,2,3])
     sampler=WSampler(circuit)
     sampler.set_dataqubits([1,2,3])
-    sampler.sample_Xnoise(2)
+    sampler.sample_Xnoise(1)
 
 
     detection_events, observable_flips=sampler.calc_sample_result()
 
     print(detection_events)
     print(observable_flips)
+
+    print(sampler._stimcircuit)
+
+
+ 
+
+
+   # Configure a decoder using the circuit.
+    detector_error_model = sampler.construct_detector_model()
+
+
+    matcher = pymatching.Matching.from_detector_error_model(detector_error_model)
+
+
+    predictions = matcher.decode_batch(detection_events)
+
+
+    print(predictions)
+
+    
+    #print(observable_flips)
+    # Count the mistakes.
+

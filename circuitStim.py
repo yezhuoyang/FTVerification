@@ -113,11 +113,14 @@ if __name__ == "__main__":
 
 
     sampler = circuit.compile_sampler()
-    num_shots = 100
+    num_shots = 1
 
     detection_events, observable_flips = sampler.sample(num_shots, separate_observables=True)
 
+    print("------------------------------------------------------------")
+    print(detection_events)
 
+    print("------------------------------------------------------------")
     print(observable_flips)
 
 
@@ -132,11 +135,12 @@ if __name__ == "__main__":
     predictions = matcher.decode_batch(detection_events)
 
 
+
     #print(predictions)
 
 
     
-    print(observable_flips)
+    #print(observable_flips)
     # Count the mistakes.
 
     num_errors = 0
