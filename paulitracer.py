@@ -342,6 +342,27 @@ class QEPG:
         pass
 
 
+import random
+
+def sample_fixed_ones(N, k):
+    """
+    Returns a list of length N containing exactly k ones 
+    (and N-k zeros), in a random order.
+    """
+    # Step 1: Create a list of k ones and N-k zeros
+    arr = [1]*k + [0]*(N-k)
+    
+    # Step 2: Shuffle the list randomly
+    random.shuffle(arr)
+    
+    return arr
+
+
+
+    
+
+
+
 #Trace the pauli frame according to the circuit
 #The pauli tracer can propagate pauli error(To verify fault-tolerance) as well as evolve stabilizer(To verify semantic correctness)
 class PauliTracer:
@@ -591,6 +612,53 @@ class PauliTracer:
 
 
 
+
+class WSampler():
+    def __init__(self, circuit:CliffordCircuit):
+        self._inducedNoise=["I"]*circuit._qubit_num
+        self._measuredError={}     
+        self._circuit=circuit
+        self._totalnoise=circuit.get_totalnoise()
+        self._tracer=PauliTracer(circuit)
+        self._detection_events=[]
+        self._observable_flips=[]
+        self._dataqubits=None
+        self._syndromequbits=None
+
+    def set_dataqubits(self, dataqubits):
+        self._tracer.set_dataqubits(dataqubits)
+
+
+    #Sample noise with weight K
+    def sample_Xnoise(self,W):
+        random_index=sample_fixed_ones(self._totalnoise,W)
+        for i in range(self._totalnoise):
+            if random_index[i]==1:
+                self._tracer.set_noise_type(i, 1)
+
+
+    #Propagate the error, and get sample result
+    def calc_sample_result(self):
+        self._tracer.prop_all()
+        self._measuredError=self._tracer.get_measuredError()
+
+
+
+    #Propagate the error, and return if there is a logical error
+    def has_logical_error(self):
+        pass
+
+
+    def reset(self):
+        self._tracer.reset()
+
+
+
+    def logical_error_rate():
+        pass
+
+
+
 rep_decoder={"01111":"IXI","00101":"IIX","01010":"XII"}
 
 
@@ -743,19 +811,19 @@ class OneFaultFTVerifier:
 #Test
 if __name__ == "__main__":
 
-    circuit=CliffordCircuit(2)
-    circuit.read_circuit_from_file("code/repetition")
-    circuit.setShowNoise(True)
-    circuit.set_parityMatchGroup(rep_paritygroup)
-    tracer=PauliTracer(circuit) 
-    tracer.set_dataqubits([1,2,3])
+    #circuit=CliffordCircuit(2)
+    #circuit.read_circuit_from_file("code/repetition")
+    #circuit.setShowNoise(True)
+    #circuit.set_parityMatchGroup(rep_paritygroup)
+    #tracer=PauliTracer(circuit) 
+    #tracer.set_dataqubits([1,2,3])
 
 
 
-    ftverifier=OneFaultFTVerifier(tracer)
-    ftverifier.generate_table()
-    ftverifier.transform_table_unique()
-    ftverifier.print_unique_table()
+    #ftverifier=OneFaultFTVerifier(tracer)
+    #ftverifier.generate_table()
+    #ftverifier.transform_table_unique()
+    #ftverifier.print_unique_table()
 
     #ftverifier.filter_table()
     #ftverifier.print_filter_table()
@@ -767,3 +835,17 @@ if __name__ == "__main__":
     #tracer.evolve_all()   
     #tracer.print_measuredError()   
     #print(circuit)
+
+
+    circuit=CliffordCircuit(2)
+    circuit.read_circuit_from_file("code/repetition")
+    tracer=PauliTracer(circuit) 
+    tracer.set_dataqubits([1,2,3])
+    sampler=WSampler(circuit)
+    sampler.set_dataqubits([1,2,3])
+    sampler.sample_Xnoise(2)
+
+
+    sampler.calc_sample_result()
+
+    print(sampler._measuredError)

@@ -3,6 +3,16 @@ import pymatching
 import numpy as np
 
 
+class repetitionCode():
+
+
+    def __init__(self,code_distance, error_rate):
+        pass
+
+
+
+
+
 
 class circuitStim():
 
@@ -33,6 +43,7 @@ class circuitStim():
 
     def add_cz(self, qubit1, qubit2):
         self._circuit.append("CZ", [qubit1, qubit2])
+
 
     def add_paulix(self, qubit):
         self._circuit.append("X", [qubit])
@@ -127,6 +138,7 @@ if __name__ == "__main__":
     
     print(observable_flips)
     # Count the mistakes.
+
     num_errors = 0
     for shot in range(num_shots):
         actual_for_shot = observable_flips[shot]
