@@ -319,6 +319,29 @@ class CliffordCircuit:
 
 
 
+
+class QEPG:
+
+    def __init__(self):
+        pass
+
+
+    def add_x_type_edge(self, a, b):
+        pass
+
+
+    def add_y_type_edge(self, a, b):
+        pass
+
+
+    def add_z_type_edge(self, a, b):
+        pass
+
+
+    def matrix(self):
+        pass
+
+
 #Trace the pauli frame according to the circuit
 #The pauli tracer can propagate pauli error(To verify fault-tolerance) as well as evolve stabilizer(To verify semantic correctness)
 class PauliTracer:
@@ -577,6 +600,10 @@ rep_paritygroup=[[0],[1,2],[3,4]]
 steane_decoder={"000001":"XIIIIII","000010":"IXIIIII","000011":"IIXIIII","000100":"IIIXIII","000101":"IIIIXII","000110":"IIIIIXI","000111":"IIIIIIX",
                 "001000":"ZIIIIII","010000":"IZIIIII","011000":"IIZIIII","100000":"IIIZIII","101000":"IIIIZII","110000":"IIIIIZI","111000":"IIIIIIZ"}
 
+
+steane_logicalZ="ZZZZZZZ"
+steane_stabilizers=["IIIXXXX","IXXIIXX","XIXIXIX","IIIZZZZ","IZZIIZZ","ZIZIZIZ"]
+
 steane_paritygroup=[[0,1],[2,3],[4,5],[6,7],[8,9],[10,11]]
 
 
@@ -603,12 +630,12 @@ class OneFaultFTVerifier:
         for i in range(self._totalnoise):
             self._pauliTracer.reset()
             self._pauliTracer.set_noise_type(i, 1)
-            self._pauliTracer.evolve_all()
+            self._pauliTracer.prop_all()
             self._finaltableX[i]=(self._pauliTracer.get_measuredError(), self._pauliTracer.get_inducedNoise())
         for i in range(self._totalnoise):
             self._pauliTracer.reset()
             self._pauliTracer.set_noise_type(i, 3)
-            self._pauliTracer.evolve_all()
+            self._pauliTracer.prop_all()
             self._finaltableZ[i]=(self._pauliTracer.get_measuredError(), self._pauliTracer.get_inducedNoise())
 
     #Transform the table from a dictionary to with many values to a dictionary with two values, just syndrome and the inducde noise

@@ -39,6 +39,10 @@ circuit = stim.Circuit.generated(
     distance=9,
     before_round_data_depolarization=0.13,
     before_measure_flip_probability=0.01)
+
+
+
+
 num_shots = 100
 num_logical_errors = count_logical_errors(circuit, num_shots)
 print("there were", num_logical_errors, "wrong predictions (logical errors) out of", num_shots, "shots")
