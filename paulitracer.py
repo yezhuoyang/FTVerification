@@ -82,11 +82,16 @@ class CliffordCircuit:
         self._gatelists=[]
         self._error_rate=0
         self._index_to_noise={}
+        self._index_to_measurement={}
+
+        #self._index_to_measurement={}
+
         self._shownoise=False
         self._syndromeErrorTable={}
         #Store the repeat match group
         #For example, if we require M0=M1, M2=M3, then the match group is [[0,1],[2,3]]
         self._parityMatchGroup=[]
+        self._observable=[]
         self._stimcircuit=stim.Circuit()
 
 
@@ -95,6 +100,15 @@ class CliffordCircuit:
 
     def get_stim_circuit(self):
         return self._stimcircuit
+
+
+    def set_observable(self, observablequbits):
+        self._observable=observablequbits
+
+
+    def get_observable(self):
+        return self._observable
+
 
     def set_parityMatchGroup(self, parityMatchGroup):
         self._parityMatchGroup=parityMatchGroup
@@ -270,10 +284,25 @@ class CliffordCircuit:
         self._totalnoise+=1   
         self._gatelists.append(Measurement(self._totalMeas,qubit))
         self._stimcircuit.append("M", [qubit])
-        self._stimcircuit.append("DETECTOR", [stim.target_rec(-1)])
+        #self._stimcircuit.append("DETECTOR", [stim.target_rec(-1)])
+        self._index_to_measurement[self._totalMeas]=self._gatelists[-1]
         self._totalMeas+=1
 
-    
+
+    def compile_detector_and_observable(self):
+        totalMeas=self._totalMeas
+        print(totalMeas)
+        for paritygroup in self._parityMatchGroup:
+            print(paritygroup)
+            print([k-totalMeas for k in paritygroup])
+            self._stimcircuit.append("DETECTOR", [stim.target_rec(k-totalMeas) for k in paritygroup])
+        for qubit in self._observable:
+            self._stimcircuit.append("M", [qubit])
+        L=len(self._observable)
+        self._stimcircuit.append("OBSERVABLE_INCLUDE", [stim.target_rec(-1-k) for k in range(L)], 0)
+
+
+
     def add_reset(self, qubit):
         self._gatelists.append(Reset(qubit))
         self._stimcircuit.append("R", [qubit])
@@ -753,38 +782,39 @@ class WSampler():
         self._tracer.prop_all()
         self._measuredError=self._tracer.get_measuredError()
         tmp_detection_events=[]
-        for i in self._measuredError.keys():
-            if self._measuredError[i]=="X" or self._measuredError[i]=="Y":
+
+        parity_group=self._circuit.get_parityMatchGroup()
+        for group in parity_group:
+            parity=0
+            for i in group:
+                if self._measuredError[i]=="X" or self._measuredError[i]=="Y":
+                    parity+=1
+            parity=parity%2
+            if parity==1:
                 tmp_detection_events.append(True)
             else:
                 tmp_detection_events.append(False)
-
-        #The parity of the observable
-        #TODO: User specify the observable
+                
+        observable=self._circuit.get_observable()
         tmp_observable_flips=[]
-        
-        for i in range(self._qubit_num):
-            if i in self._dataqubits:
-                if self._tracer._inducedNoise[i]=="X" or self._tracer._inducedNoise[i]=="Y":
-                    tmp_observable_flips.append(True)
-                else:
-                    tmp_observable_flips.append(False)
-                break
-        
+        parity=0
+        for index in observable:
+
+            if self._tracer._inducedNoise[index]=="X" or self._tracer._inducedNoise[index]=="Y":
+                parity+=1
+        parity=parity%2
+        if parity==1:
+            tmp_observable_flips.append(True)
+        else:
+            tmp_observable_flips.append(False)
+
         return [tmp_detection_events], [tmp_observable_flips]
          
 
     def construct_detector_model(self):
         self._stimcircuit=self._tracer.get_stim_circuit()
-
-        self._stimcircuit.append("M", [self._dataqubits[0]], 0)
-        self._stimcircuit.append("OBSERVABLE_INCLUDE", [stim.target_rec(-1)], 0)
-
-        #print(self._stimcircuit)
-
         self._detector_error_model= self._stimcircuit.detector_error_model(decompose_errors=True)
        
-
 
 
     #Propagate the error, and return if there is a logical error
@@ -1019,17 +1049,25 @@ if __name__ == "__main__":
     #print(circuit)
 
 
-    
     circuit=CliffordCircuit(2)
     circuit.set_error_rate(0.001)
     circuit.read_circuit_from_file("code/repetition")
+
+    parityMatchGroup=[[0,2],[1,3],[4]]
+    circuit.set_parityMatchGroup(parityMatchGroup)
+
+
+    observable=[0]
+    circuit.set_observable(observable)
+    circuit.compile_detector_and_observable()
+
 
 
     
     tracer=PauliTracer(circuit) 
     tracer.set_dataqubits([1,2,3])
     sampler=WSampler(circuit)
-    sampler.set_shots(20)
+    sampler.set_shots(200)
     sampler.set_dataqubits([1,2,3])
     sampler.construct_detector_model()
 
@@ -1041,7 +1079,7 @@ if __name__ == "__main__":
 
 
     Nsampler=NaiveSampler(circuit)
-    Nsampler.set_shots(200)
+    Nsampler.set_shots(100000)
     Nsampler.calc_logical_error_rate()
     print(Nsampler._logical_error_rate)
     
