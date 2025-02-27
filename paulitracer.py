@@ -102,8 +102,8 @@ class CliffordCircuit:
         return self._stimcircuit
 
 
-    def set_observable(self, observablequbits):
-        self._observable=observablequbits
+    def set_observable(self, observablemeasurements):
+        self._observable=observablemeasurements
 
 
     def get_observable(self):
@@ -194,7 +194,7 @@ class CliffordCircuit:
     def compile_from_stim_circuit_str(self, stim_str):
         lines = stim_str.splitlines()
         output_lines = []
-        
+        maxum_q_index=0
         '''
         First, read and compute the parity match group and the observable
         '''
@@ -279,25 +279,31 @@ class CliffordCircuit:
 
             if gate == "CX":
                 control = int(tokens[1])
+                maxum_q_index=maxum_q_index if maxum_q_index>control else control
                 target = int(tokens[2])
+                maxum_q_index=maxum_q_index if maxum_q_index>target else target
                 self.add_cnot(control, target)
 
 
             elif gate == "M":
                 qubit = int(tokens[1])
+                maxum_q_index=maxum_q_index if maxum_q_index>qubit else qubit
                 self.add_measurement(qubit)
 
             elif gate == "H":
                 qubit = int(tokens[1])
+                maxum_q_index=maxum_q_index if maxum_q_index>qubit else qubit
                 self.add_hadamard(qubit)            
 
             elif gate == "S":
                 qubit = int(tokens[1])
+                maxum_q_index=maxum_q_index if maxum_q_index>qubit else qubit
                 self.add_phase(qubit)    
 
             
             elif gate == "R":
                 qubits = int(tokens[1])
+                maxum_q_index=maxum_q_index if maxum_q_index>qubits else qubits
                 self.add_reset(qubits)
             
         '''
@@ -305,6 +311,7 @@ class CliffordCircuit:
         '''
         self._parityMatchGroup=parityMatchGroup
         self._observable=observable
+        self._qubit_num=maxum_q_index+1
         self.compile_detector_and_observable()    
 
 
@@ -413,15 +420,13 @@ class CliffordCircuit:
 
     def compile_detector_and_observable(self):
         totalMeas=self._totalMeas
-        print(totalMeas)
+        #print(totalMeas)
         for paritygroup in self._parityMatchGroup:
-            print(paritygroup)
-            print([k-totalMeas for k in paritygroup])
+            #print(paritygroup)
+            #print([k-totalMeas for k in paritygroup])
             self._stimcircuit.append("DETECTOR", [stim.target_rec(k-totalMeas) for k in paritygroup])
-        for qubit in self._observable:
-            self._stimcircuit.append("M", [qubit])
-        L=len(self._observable)
-        self._stimcircuit.append("OBSERVABLE_INCLUDE", [stim.target_rec(-1-k) for k in range(L)], 0)
+
+        self._stimcircuit.append("OBSERVABLE_INCLUDE", [stim.target_rec(k-totalMeas) for k in self._observable], 0)
 
 
 
@@ -921,8 +926,7 @@ class WSampler():
         tmp_observable_flips=[]
         parity=0
         for index in observable:
-
-            if self._tracer._inducedNoise[index]=="X" or self._tracer._inducedNoise[index]=="Y":
+            if self._measuredError[index]=="X" or self._measuredError[index]=="Y":
                 parity+=1
         parity=parity%2
         if parity==1:
@@ -1228,21 +1232,38 @@ if __name__ == "__main__":
     stim_circuit=stim.Circuit.generated("repetition_code:memory",rounds=2,distance=3).flattened()
     stim_str=rewrite_stim_code(str(stim_circuit))
 
-
     print(stim_str)
 
-
     circuit=CliffordCircuit(2)
-    circuit.set_error_rate(0.001)
+    circuit.set_error_rate(0.1)
     circuit.compile_from_stim_circuit_str(stim_str)
 
 
-    circuit_stim=circuit._stimcircuit
-    print("--------------------------------------------------------------")
-    print(circuit_stim)
+    #circuit_stim=circuit._stimcircuit
 
 
+    
+    Nsampler=NaiveSampler(circuit)
+    Nsampler.set_shots(1000)
+    Nsampler.calc_logical_error_rate()
+    print(Nsampler._logical_error_rate)
 
+    print("---------------------------------------------------------------")
+    print(circuit._stimcircuit)
+
+
+    print(circuit._qubit_num)
+    
+    tracer=PauliTracer(circuit) 
+    sampler=WSampler(circuit)
+    sampler.set_shots(200)
+    sampler.construct_detector_model()
+
+    sampler.calc_logical_error_rate()
+    print(sampler._logical_error_distribution)
+    print(sampler._logical_error_rate)
+    
+    
 
 
     #sampler.sample_Xnoise(1)
