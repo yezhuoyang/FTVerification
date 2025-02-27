@@ -79,6 +79,180 @@ class circuitStim():
 
 
 
+def rewrite_stim_code(code: str) -> str:
+    """
+    Rewrites a Stim program so that each line contains at most one gate or measurement.
+    Lines starting with TICK, R, DETECTOR(, and OBSERVABLE_INCLUDE( are kept as-is.
+    Multi-target lines for CX, M, and MR are split up.
+    """
+    lines = code.splitlines()
+    output_lines = []
+
+    for line in lines:
+        stripped_line = line.strip()
+        if not stripped_line:
+            # Skip empty lines (optional: you could also preserve them)
+            continue
+
+        # Keep lines that we do NOT want to split
+        if (stripped_line.startswith("TICK") or
+            stripped_line.startswith("DETECTOR(") or
+            stripped_line.startswith("QUBIT_COORDS(") or     
+            stripped_line.startswith("OBSERVABLE_INCLUDE(")):
+            output_lines.append(stripped_line)
+            continue
+
+        tokens = stripped_line.split()
+        gate = tokens[0]
+
+        # Handle 2-qubit gate lines like "CX 0 1 2 3 4 5 ..."
+        if gate == "CX":
+            qubits = tokens[1:]
+            # Pair up the qubits [q0, q1, q2, q3, ...] => (q0,q1), (q2,q3), ...
+            for i in range(0, len(qubits), 2):
+                q1, q2 = qubits[i], qubits[i + 1]
+                output_lines.append(f"CX {q1} {q2}")
+
+        # Handle multi-qubit measurements "M 1 3 5 ..." => each on its own line
+        elif gate == "M":
+            qubits = tokens[1:]
+            for q in qubits:
+                output_lines.append(f"M {q}")
+
+
+        elif gate == "MX":
+            qubits = tokens[1:]
+            for q in qubits:
+                output_lines.append(f"H {q}")
+                output_lines.append(f"M {q}")
+
+        elif gate == "MY":
+            qubits = tokens[1:]
+            for q in qubits:
+                output_lines.append(f"S {q}")
+                output_lines.append(f"S {q}")
+                output_lines.append(f"S {q}")
+                output_lines.append(f"H {q}")                
+                output_lines.append(f"M {q}")
+
+
+
+        elif gate == "H":
+            qubits = tokens[1:]
+            for q in qubits:
+                output_lines.append(f"H {q}")
+
+        elif gate == "S":
+            qubits = tokens[1:]
+            for q in qubits:
+                output_lines.append(f"S {q}")            
+
+        # Handle multi-qubit measure+reset "MR 1 3 5 ..." => each on its own line
+        elif gate == "MR":
+            qubits = tokens[1:]
+            for q in qubits:
+                output_lines.append(f"M {q}")
+                output_lines.append(f"R {q}")
+
+        elif gate == "R":
+            qubits = tokens[1:]
+            for q in qubits:
+                output_lines.append(f"R {q}")
+        
+        elif gate == "RX":
+            qubits = tokens[1:]
+            for q in qubits:
+                output_lines.append(f"R {q}")
+                output_lines.append(f"H {q}")                
+
+
+        else:
+            # If there's some other gate we don't specifically handle,
+            # keep it as is, or add more logic if needed.
+            output_lines.append(stripped_line)
+
+    return "\n".join(output_lines)
+
+
+
+def insert_noise_for_h_cx(code: str, p: float) -> str:
+    """
+    Inserts X_ERROR(p) and Z_ERROR(p) lines immediately before each H or CX line.
+
+    For example:
+      H 0
+    becomes:
+      X_ERROR(p) 0
+      Z_ERROR(p) 0
+      H 0
+
+    and:
+      CX 0 1
+    becomes:
+      X_ERROR(p) 0
+      Z_ERROR(p) 0
+      X_ERROR(p) 1
+      Z_ERROR(p) 1
+      CX 0 1
+
+    Args:
+        code: A string containing Stim code, where gates have already been split 
+              into single-target (H) or single-pair (CX) lines.
+        p: The probability for X_ERROR and Z_ERROR insertions.
+
+    Returns:
+        A modified Stim program (string) with inserted noise lines.
+    """
+    lines = code.splitlines()
+    new_lines = []
+
+    for line in lines:
+        stripped_line = line.strip()
+        if not stripped_line:
+            # Skip or preserve empty lines as desired
+            new_lines.append(line)
+            continue
+
+        tokens = stripped_line.split()
+        gate = tokens[0]
+
+        # If it's H gate with one qubit, insert noise lines
+        if gate == "H" and len(tokens) == 2:
+            qubit = tokens[1]
+            new_lines.append(f"X_ERROR({p}) {qubit}")
+            new_lines.append(f"Z_ERROR({p}) {qubit}")
+            new_lines.append(stripped_line)
+
+        # If it's CX gate with two qubits, insert noise lines
+        elif gate == "CX" and len(tokens) == 3:
+            cqubit = tokens[1]
+            tqubit = tokens[2]
+            new_lines.append(f"X_ERROR({p}) {cqubit}")
+            new_lines.append(f"Z_ERROR({p}) {cqubit}")
+            new_lines.append(f"X_ERROR({p}) {tqubit}")
+            new_lines.append(f"Z_ERROR({p}) {tqubit}")
+            new_lines.append(stripped_line)
+
+        else:
+            # Otherwise, keep the line as is
+            new_lines.append(stripped_line)
+
+    return "\n".join(new_lines)
+
+
+
+def str_to_circuit(code: str) -> stim.Circuit:
+    """
+    Converts a string representation of a Stim program into a stim.Circuit object.
+    """
+    return stim.Circuit(stim_program_text=str)
+
+
+
+
+
+
+
 
 
 if __name__ == "__main__":

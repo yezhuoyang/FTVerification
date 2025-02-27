@@ -188,6 +188,128 @@ class CliffordCircuit:
                         raise ValueError(f"Unknown gate type: {gate_type}")
 
     
+    '''
+    Compile from a stim circuit string.
+    '''
+    def compile_from_stim_circuit_str(self, stim_str):
+        lines = stim_str.splitlines()
+        output_lines = []
+        
+        '''
+        First, read and compute the parity match group and the observable
+        '''
+        parityMatchGroup=[]
+        observable=[]
+
+        
+        measure_index_to_line={}
+        measure_line_to_measure_index={}             
+        current_line_index=0
+        current_measure_index=0
+        for line in lines:
+            stripped_line = line.strip()
+            if not stripped_line:
+                # Skip empty lines (optional: you could also preserve them)
+                current_line_index+=1
+                continue
+            
+            # Keep lines that we do NOT want to split
+            if (stripped_line.startswith("TICK") or
+                stripped_line.startswith("DETECTOR(") or
+                stripped_line.startswith("QUBIT_COORDS(") or                
+                stripped_line.startswith("OBSERVABLE_INCLUDE(")):
+                current_line_index+=1
+                continue
+
+            tokens = stripped_line.split()
+            gate = tokens[0]
+
+            if gate == "M":
+                measure_index_to_line[current_measure_index]=current_line_index
+                measure_line_to_measure_index[current_line_index]=current_measure_index
+                current_measure_index+=1
+
+            current_line_index+=1
+        
+
+        current_line_index=0
+        measure_stack=[]
+        for line in lines:
+            stripped_line = line.strip()
+            if stripped_line.startswith("DETECTOR("):
+                meas_index = [token.strip() for token in stripped_line.split() if token.strip().startswith("rec")]
+                meas_index = [int(x[4:-1]) for x in meas_index]
+                parityMatchGroup.append([measure_line_to_measure_index[measure_stack[x]] for x in meas_index])
+                current_line_index+=1
+                continue
+            elif stripped_line.startswith("OBSERVABLE_INCLUDE("):
+                meas_index = [token.strip() for token in stripped_line.split() if token.strip().startswith("rec")]
+                meas_index = [int(x[4:-1]) for x in meas_index]
+                observable=[measure_line_to_measure_index[measure_stack[x]] for x in meas_index]
+                current_line_index+=1
+                continue
+
+
+            tokens = stripped_line.split()
+            gate = tokens[0]
+            if gate == "M":
+                measure_stack.append(current_line_index)
+            current_line_index+=1
+
+        '''
+        Insert gates
+        '''
+        for line in lines:
+            stripped_line = line.strip()
+            if not stripped_line:
+                # Skip empty lines (optional: you could also preserve them)
+                continue
+
+            # Keep lines that we do NOT want to split
+            if (stripped_line.startswith("TICK") or
+                stripped_line.startswith("DETECTOR(") or
+                stripped_line.startswith("QUBIT_COORDS(") or     
+                stripped_line.startswith("OBSERVABLE_INCLUDE(")):
+                output_lines.append(stripped_line)
+                continue
+
+            tokens = stripped_line.split()
+            gate = tokens[0]
+
+
+            if gate == "CX":
+                control = int(tokens[1])
+                target = int(tokens[2])
+                self.add_cnot(control, target)
+
+
+            elif gate == "M":
+                qubit = int(tokens[1])
+                self.add_measurement(qubit)
+
+            elif gate == "H":
+                qubit = int(tokens[1])
+                self.add_hadamard(qubit)            
+
+            elif gate == "S":
+                qubit = int(tokens[1])
+                self.add_phase(qubit)    
+
+            
+            elif gate == "R":
+                qubits = int(tokens[1])
+                self.add_reset(qubits)
+            
+        '''
+        Finally, compiler detector and observable
+        '''
+        self._parityMatchGroup=parityMatchGroup
+        self._observable=observable
+        self.compile_detector_and_observable()    
+
+
+
+
     def save_circuit_to_file(self, filename):
         pass
 
@@ -442,8 +564,8 @@ class PauliTracer:
         self._stimcircuit=circuit.get_stim_circuit()
 
 
-    def set_errorrate(self, errorrate):
-        self._errorrate=errorrate
+    def set_error_rate(self, errorrate):
+        self._error_rate=errorrate
 
 
     def set_initStabilizers(self, initStabilizers,phasefactor=1):
@@ -1020,6 +1142,25 @@ class repetitionCode():
 
 
 
+
+
+class StimToCliffordCircuit():
+
+
+    def __init__(self, stimcircuit:stim.Circuit):
+        self._stimcircuit=stimcircuit
+
+
+    def convert(self):
+        pass
+
+
+
+
+from circuitStim import rewrite_stim_code
+
+
+
 #Test
 if __name__ == "__main__":
 
@@ -1048,7 +1189,7 @@ if __name__ == "__main__":
     #tracer.print_measuredError()   
     #print(circuit)
 
-
+    '''
     circuit=CliffordCircuit(2)
     circuit.set_error_rate(0.001)
     circuit.read_circuit_from_file("code/repetition")
@@ -1082,7 +1223,25 @@ if __name__ == "__main__":
     Nsampler.set_shots(100000)
     Nsampler.calc_logical_error_rate()
     print(Nsampler._logical_error_rate)
-    
+    '''
+
+    stim_circuit=stim.Circuit.generated("repetition_code:memory",rounds=2,distance=3).flattened()
+    stim_str=rewrite_stim_code(str(stim_circuit))
+
+
+    print(stim_str)
+
+
+    circuit=CliffordCircuit(2)
+    circuit.set_error_rate(0.001)
+    circuit.compile_from_stim_circuit_str(stim_str)
+
+
+    circuit_stim=circuit._stimcircuit
+    print("--------------------------------------------------------------")
+    print(circuit_stim)
+
+
 
 
 
