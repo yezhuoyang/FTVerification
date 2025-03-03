@@ -13,9 +13,9 @@ class QEPG:
 
         self._total_meas=self._circuit._totalMeas
         self._total_noise=self._circuit._totalnoise
-        self._XerrorMatrix=np.zeros((3*self._total_noise, self._total_meas), dtype=int)
-        self._YerrorMatrix=np.zeros((3*self._total_noise, self._total_meas), dtype=int)
-        self._ZerrorMatrix=np.zeros((3*self._total_noise, self._total_meas), dtype=int)
+        self._XerrorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype=int)
+        self._YerrorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype=int)
+        self._ZerrorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype=int)
 
 
     def compute_graph(self):
@@ -58,28 +58,28 @@ class QEPG:
 
     def add_x_type_edge(self, noise_type,a, b):
         if noise_type==1:
-            self._XerrorMatrix[a][b]=1
+            self._XerrorMatrix[b][a]=1
         elif noise_type==2:
-            self._XerrorMatrix[a+self._total_noise][b]=1
+            self._XerrorMatrix[b][a+self._total_noise]=1
         elif noise_type==3:
-            self._XerrorMatrix[a+2*self._total_noise][b]=1
+            self._XerrorMatrix[b][a+2*self._total_noise]=1
 
     def add_y_type_edge(self, noise_type, a, b):
         if noise_type==1:
-            self._YerrorMatrix[a][b]=1
+            self._YerrorMatrix[b][a]=1
         elif noise_type==2:
-            self._YerrorMatrix[a+self._total_noise][b]=1
+            self._YerrorMatrix[b][a+self._total_noise]=1
         elif noise_type==3:
-            self._YerrorMatrix[a+2*self._total_noise][b]=1
+            self._YerrorMatrix[b][a+2*self._total_noise]=1
 
 
     def add_z_type_edge(self, noise_type,a, b):
         if noise_type==1:
-            self._ZerrorMatrix[a][b]=1
+            self._ZerrorMatrix[b][a]=1
         elif noise_type==2:
-            self._ZerrorMatrix[a+self._total_noise][b]=1
+            self._ZerrorMatrix[b][a+self._total_noise]=1
         elif noise_type==3:
-            self._ZerrorMatrix[a+2*self._total_noise][b]=1
+            self._ZerrorMatrix[b][a+2*self._total_noise]=1
 
 
     '''
@@ -364,7 +364,7 @@ if __name__ == "__main__":
     #print(stim_str)
 
     circuit=CliffordCircuit(2)
-    circuit.set_error_rate(0.1)
+    circuit.set_error_rate(0.01)
     circuit.compile_from_stim_circuit_str(stim_str)
 
 
@@ -385,7 +385,7 @@ if __name__ == "__main__":
     
     tracer=PauliTracer(circuit) 
     sampler=WSampler(circuit)
-    sampler.set_shots(5000)
+    sampler.set_shots(2000)
     sampler.construct_detector_model()
 
     sampler.calc_logical_error_rate()
