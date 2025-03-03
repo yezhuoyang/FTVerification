@@ -531,7 +531,7 @@ class QEPG:
 
 import random
 
-def sample_fixed_ones(N, k):
+def sample_fixed_one_two(N, k):
     """
     Returns a list of length N containing exactly k ones 
     (and N-k zeros), in a random order.
@@ -539,10 +539,14 @@ def sample_fixed_ones(N, k):
     # Step 1: Create a list of k ones and N-k zeros
     arr = [1]*k + [0]*(N-k)
     
+    # Step 2: Create a list of 1 or two
+    arrtype = [1]*(N//2) + [2]*(N-(N//2))
+
     # Step 2: Shuffle the list randomly
     random.shuffle(arr)
+    random.shuffle(arrtype)
     
-    return arr
+    return [a * b for a, b in zip(arr, arrtype)]
 
 
 
@@ -897,11 +901,13 @@ class WSampler():
         self._dataqubits=dataqubits
 
     #Sample noise with weight K
-    def sample_Xnoise(self,W):
-        random_index=sample_fixed_ones(self._totalnoise,W)
+    def sample_noise(self,W):
+        random_index=sample_fixed_one_two(self._totalnoise,W)
         for i in range(self._totalnoise):
             if random_index[i]==1:
                 self._tracer.set_noise_type(i, 1)
+            elif random_index[i]==2:
+                self._tracer.set_noise_type(i, 3)                
 
 
     #Propagate the error, and get sample result
@@ -966,17 +972,25 @@ class WSampler():
     def binomial_weight(self, W):
         p=self._tracer._errorrate
         N=self._totalnoise
-        return math.comb(N, W) * (p**W) * ((1 - p)**(N - W))
-
+        if N<100:
+            return math.comb(N, W) * (p**W) * ((1 - p)**(N - W))
+        else:
+            lam = N * p
+            # PMF(X=W) = e^-lam * lam^W / W!
+            # Evaluate in logs to avoid overflow for large W, then exponentiate
+            log_pmf = (-lam) + W*math.log(lam) - math.lgamma(W+1)
+            return math.exp(log_pmf)
 
     def calc_error_rate_with_fixed_weight(self, W):
         errorshots=0
         for i in range(self._shots):
+            #print(i)
             self.reset()
-            self.sample_Xnoise(W)
+            self.sample_noise(W)
             if self.has_logical_error():
                 errorshots+=1
         self._logical_error_distribution[W]=errorshots/self._shots
+        print(f"Sample done! W={W}")
 
 
 
@@ -1244,7 +1258,7 @@ if __name__ == "__main__":
 
     
     Nsampler=NaiveSampler(circuit)
-    Nsampler.set_shots(3000)
+    Nsampler.set_shots(30000)
     Nsampler.calc_logical_error_rate()
     print(Nsampler._logical_error_rate)
 
