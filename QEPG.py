@@ -228,6 +228,9 @@ class WSampler():
         self._QPEGraph=QEPG(circuit)
         self._QPEGraph.compute_graph()
 
+        self._binomial_weights=[0]*self._totalnoise
+        self.calc_binomial_weight()
+
 
     def set_shots(self, shots):
         self._shots=shots
@@ -305,6 +308,9 @@ class WSampler():
         return False
 
 
+
+
+
     def binomial_weight(self, W):
         p=self._circuit._error_rate
         N=self._totalnoise
@@ -316,6 +322,13 @@ class WSampler():
             # Evaluate in logs to avoid overflow for large W, then exponentiate
             log_pmf = (-lam) + W*math.log(lam) - math.lgamma(W+1)
             return math.exp(log_pmf)
+
+
+    def calc_binomial_weight(self):
+        for i in range(self._totalnoise):
+            self._binomial_weights[i]=self.binomial_weight(i)
+        
+
 
     def calc_error_rate_with_fixed_weight(self, W):
         errorshots=0
@@ -331,9 +344,32 @@ class WSampler():
     def calc_logical_error_rate(self):
         for i in range(self._totalnoise):
             self.calc_error_rate_with_fixed_weight(i)
-            self._logical_error_rate+=self.binomial_weight(i)*self._logical_error_distribution[i]
+            self._logical_error_rate+=self._binomial_weights[i]*self._logical_error_distribution[i]
 
         return self._logical_error_rate
+
+
+
+
+def test_QEPG():
+    circuit=CliffordCircuit(2)
+    circuit.add_cnot(0,1)
+
+    circuit.add_measurement(0)
+    circuit.add_measurement(1)
+    
+    graph=QEPG(circuit)
+    graph.compute_graph()
+    
+    noise_vector=np.array([0]*12)    
+    noise_vector[0]=1
+
+    measureresult=graph.sample_error(noise_vector)
+
+    assert  np.array_equal(measureresult, [1,1])
+
+
+
 
 
 
@@ -358,13 +394,14 @@ if __name__ == "__main__":
     '''
 
 
+    
     stim_circuit=stim.Circuit.generated("repetition_code:memory",rounds=1,distance=3).flattened()
     stim_str=rewrite_stim_code(str(stim_circuit))
 
     #print(stim_str)
 
     circuit=CliffordCircuit(2)
-    circuit.set_error_rate(0.01)
+    circuit.set_error_rate(0.005)
     circuit.compile_from_stim_circuit_str(stim_str)
 
 
@@ -393,3 +430,4 @@ if __name__ == "__main__":
     print(sampler._logical_error_rate)
     
 
+    #test_QEPG() 

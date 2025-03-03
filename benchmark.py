@@ -1,5 +1,5 @@
 #Compare the running time of Stim and my method
-from paulitracer import *
+from QEPG import *
 from typing import List
 import sinter
 import matplotlib.pyplot as plt
