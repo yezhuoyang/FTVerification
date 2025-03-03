@@ -23,7 +23,7 @@ class StimSurface():
     def calc_threhold(self):
         tasks = [
             sinter.Task(
-                circuit=generated(
+                circuit=self.generated(
                     distance=d,
                     errorrate=noise,
                 ),
@@ -91,7 +91,7 @@ class mySurface():
 
     def calc_threhold(self):
         logical_list=[]
-        dvals=[3]
+        dvals=[3,5]
         noise_list=[0.00001,0.00005,0.0001,0.0002,0.0005,0.001,0.005, 0.008, 0.01, 0.011, 0.012,0.02,0.04]
         for d in dvals:
             tmp_list=[]

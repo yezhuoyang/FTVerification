@@ -95,6 +95,9 @@ class CliffordCircuit:
         self._stimcircuit=stim.Circuit()
 
 
+        #self._error_channel
+
+
     def set_error_rate(self, error_rate):
         self._error_rate=error_rate
 
@@ -336,14 +339,12 @@ class CliffordCircuit:
 
 
     def add_cnot(self, control, target):
-        self._stimcircuit.append("X_ERROR", [control], self._error_rate)
-        self._stimcircuit.append("Z_ERROR", [control], self._error_rate)
+        self._stimcircuit.append("DEPOLARIZE1", [control], self._error_rate)
         self._gatelists.append(pauliNoise(self._totalnoise, control))
         self._index_to_noise[self._totalnoise]=self._gatelists[-1]
         self._totalnoise+=1
         self._gatelists.append(pauliNoise(self._totalnoise, target))
-        self._stimcircuit.append("X_ERROR", [target], self._error_rate)
-        self._stimcircuit.append("Z_ERROR", [target], self._error_rate)
+        self._stimcircuit.append("DEPOLARIZE1", [target], self._error_rate)
         self._index_to_noise[self._totalnoise]=self._gatelists[-1]
         self._totalnoise+=1
         self._gatelists.append(TwoQGate(twoQGateindices["CNOT"], control, target))
@@ -351,8 +352,7 @@ class CliffordCircuit:
 
 
     def add_hadamard(self, qubit):
-        self._stimcircuit.append("X_ERROR", [qubit], self._error_rate)
-        self._stimcircuit.append("Z_ERROR", [qubit], self._error_rate)
+        self._stimcircuit.append("DEPOLARIZE1", [qubit], self._error_rate)        
         self._gatelists.append(pauliNoise(self._totalnoise, qubit))
         self._index_to_noise[self._totalnoise]=self._gatelists[-1]
         self._totalnoise+=1        
@@ -360,8 +360,7 @@ class CliffordCircuit:
         self._stimcircuit.append("H", [qubit])
 
     def add_phase(self, qubit):
-        self._stimcircuit.append("X_ERROR", [qubit], self._error_rate)
-        self._stimcircuit.append("Z_ERROR", [qubit], self._error_rate)
+        self._stimcircuit.append("DEPOLARIZE1", [qubit], self._error_rate)   
         self._gatelists.append(pauliNoise(self._totalnoise, qubit))
         self._index_to_noise[self._totalnoise]=self._gatelists[-1]
         self._totalnoise+=1      
@@ -379,8 +378,7 @@ class CliffordCircuit:
 
 
     def add_paulix(self, qubit):
-        self._stimcircuit.append("X_ERROR", [qubit], self._error_rate)
-        self._stimcircuit.append("Z_ERROR", [qubit], self._error_rate)
+        self._stimcircuit.append("DEPOLARIZE1", [qubit], self._error_rate)   
         self._gatelists.append(pauliNoise(self._totalnoise, qubit))
         self._index_to_noise[self._totalnoise]=self._gatelists[-1]
         self._totalnoise+=1     
@@ -388,8 +386,7 @@ class CliffordCircuit:
         self._stimcircuit.append("X", [qubit])
 
     def add_pauliy(self, qubit):
-        self._stimcircuit.append("X_ERROR", [qubit], self._error_rate)
-        self._stimcircuit.append("Z_ERROR", [qubit], self._error_rate)
+        self._stimcircuit.append("DEPOLARIZE1", [qubit], self._error_rate)  
         self._gatelists.append(pauliNoise(self._totalnoise, qubit))
         self._index_to_noise[self._totalnoise]=self._gatelists[-1]
         self._totalnoise+=1    
@@ -397,8 +394,7 @@ class CliffordCircuit:
         self._stimcircuit.append("Y", [qubit])
 
     def add_pauliz(self, qubit):
-        self._stimcircuit.append("X_ERROR", [qubit], self._error_rate)
-        self._stimcircuit.append("Z_ERROR", [qubit], self._error_rate)
+        self._stimcircuit.append("DEPOLARIZE1", [qubit], self._error_rate)  
         self._gatelists.append(pauliNoise(self._totalnoise, qubit))
         self._index_to_noise[self._totalnoise]=self._gatelists[-1]
         self._totalnoise+=1    
@@ -406,8 +402,7 @@ class CliffordCircuit:
         self._stimcircuit.append("Z", [qubit])
 
     def add_measurement(self, qubit):
-        self._stimcircuit.append("X_ERROR", [qubit], self._error_rate)
-        self._stimcircuit.append("Z_ERROR", [qubit], self._error_rate)
+        self._stimcircuit.append("DEPOLARIZE1", [qubit], self._error_rate)  
         self._gatelists.append(pauliNoise(self._totalnoise, qubit))
         self._index_to_noise[self._totalnoise]=self._gatelists[-1]
         self._totalnoise+=1   
@@ -531,7 +526,8 @@ class QEPG:
 
 import random
 
-def sample_fixed_one_two(N, k):
+
+def sample_fixed_one_two_three(N, k):
     """
     Returns a list of length N containing exactly k ones 
     (and N-k zeros), in a random order.
@@ -540,8 +536,12 @@ def sample_fixed_one_two(N, k):
     arr = [1]*k + [0]*(N-k)
     
     # Step 2: Create a list of 1 or two
-    arrtype = [1]*(N//2) + [2]*(N-(N//2))
+    arrtype=[]
+    
+    for i in range(N):
+        arrtype.append(random.randint(1,3))
 
+    
     # Step 2: Shuffle the list randomly
     random.shuffle(arr)
     random.shuffle(arrtype)
@@ -902,11 +902,13 @@ class WSampler():
 
     #Sample noise with weight K
     def sample_noise(self,W):
-        random_index=sample_fixed_one_two(self._totalnoise,W)
+        random_index=sample_fixed_one_two_three(self._totalnoise,W)
         for i in range(self._totalnoise):
             if random_index[i]==1:
                 self._tracer.set_noise_type(i, 1)
             elif random_index[i]==2:
+                self._tracer.set_noise_type(i, 2)
+            elif random_index[i]==3:
                 self._tracer.set_noise_type(i, 3)                
 
 
@@ -990,7 +992,7 @@ class WSampler():
             if self.has_logical_error():
                 errorshots+=1
         self._logical_error_distribution[W]=errorshots/self._shots
-        print(f"Sample done! W={W}")
+        #print(f"Sample done! W={W}")
 
 
 
@@ -1243,13 +1245,13 @@ if __name__ == "__main__":
     print(Nsampler._logical_error_rate)
     '''
 
-    stim_circuit=stim.Circuit.generated("repetition_code:memory",rounds=2,distance=3).flattened()
+    stim_circuit=stim.Circuit.generated("repetition_code:memory",rounds=1,distance=3).flattened()
     stim_str=rewrite_stim_code(str(stim_circuit))
 
     #print(stim_str)
 
     circuit=CliffordCircuit(2)
-    circuit.set_error_rate(0.01)
+    circuit.set_error_rate(0.1)
     circuit.compile_from_stim_circuit_str(stim_str)
 
 
@@ -1258,7 +1260,7 @@ if __name__ == "__main__":
 
     
     Nsampler=NaiveSampler(circuit)
-    Nsampler.set_shots(30000)
+    Nsampler.set_shots(10000)
     Nsampler.calc_logical_error_rate()
     print(Nsampler._logical_error_rate)
 
@@ -1270,7 +1272,7 @@ if __name__ == "__main__":
     
     tracer=PauliTracer(circuit) 
     sampler=WSampler(circuit)
-    sampler.set_shots(200)
+    sampler.set_shots(5000)
     sampler.construct_detector_model()
 
     sampler.calc_logical_error_rate()
