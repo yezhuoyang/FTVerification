@@ -616,7 +616,7 @@ class PauliTracer:
 
 
     def reset(self):
-        self._inducedNoise=["I"]*circuit._qubit_num 
+        self._inducedNoise=["I"]*self._circuit._qubit_num 
         self._measuredError={}      
         self._circuit.reset_noise_type()
 
@@ -1232,10 +1232,10 @@ if __name__ == "__main__":
     stim_circuit=stim.Circuit.generated("repetition_code:memory",rounds=2,distance=3).flattened()
     stim_str=rewrite_stim_code(str(stim_circuit))
 
-    print(stim_str)
+    #print(stim_str)
 
     circuit=CliffordCircuit(2)
-    circuit.set_error_rate(0.1)
+    circuit.set_error_rate(0.01)
     circuit.compile_from_stim_circuit_str(stim_str)
 
 
@@ -1244,12 +1244,12 @@ if __name__ == "__main__":
 
     
     Nsampler=NaiveSampler(circuit)
-    Nsampler.set_shots(1000)
+    Nsampler.set_shots(3000)
     Nsampler.calc_logical_error_rate()
     print(Nsampler._logical_error_rate)
 
     print("---------------------------------------------------------------")
-    print(circuit._stimcircuit)
+    #print(circuit._stimcircuit)
 
 
     print(circuit._qubit_num)
