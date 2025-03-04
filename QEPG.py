@@ -199,6 +199,47 @@ class NaiveSampler():
 
     
 
+#Sample noise with weight K
+def sample_noise_and_calc_result(totalnoise,W,QPEGraph:QEPG, parity_group, observable):
+    random_index=sample_fixed_one_two_three(totalnoise,W)
+    noise_vector=np.array([0]*3*totalnoise)
+
+    for i in range(totalnoise):
+        if random_index[i]==1:
+            noise_vector[i]=1
+        elif random_index[i]==2:
+            noise_vector[i+totalnoise]=1
+        elif random_index[i]==3:
+            noise_vector[i+2*totalnoise]=1           
+
+    detectorresult=QPEGraph.sample_error(noise_vector) 
+
+    tmp_detection_events=[]
+    for group in parity_group:
+        parity=0
+        for i in group:
+            if detectorresult[i]==1:
+                parity+=1
+        parity=parity%2
+        if parity==1:
+            tmp_detection_events.append(True)
+        else:
+            tmp_detection_events.append(False)
+            
+    tmp_observable_flips=[]
+    parity=0
+    for index in observable:
+        if detectorresult[index]==1:
+            parity+=1
+    parity=parity%2
+    if parity==1:
+        tmp_observable_flips.append(True)
+    else:
+        tmp_observable_flips.append(False)
+
+    return tmp_detection_events, [tmp_observable_flips]
+
+
 
 
 class WSampler():
@@ -243,7 +284,7 @@ class WSampler():
 
 
     def set_shots(self, shots):
-        self._shots=int(shots/(2*self._distance))
+        self._shots=shots
 
 
     def set_dataqubits(self, dataqubits):
@@ -324,7 +365,7 @@ class WSampler():
     def binomial_weight(self, W):
         p=self._circuit._error_rate
         N=self._totalnoise
-        if N<100:
+        if N<200:
             return math.comb(N, W) * (p**W) * ((1 - p)**(N - W))
         else:
             lam = N * p
@@ -347,11 +388,11 @@ class WSampler():
             if self.has_logical_error():
                 errorshots+=1
 
-            p=errorshots/(i+1)    
-            if i>10 and p*(1-p)<=self._maxvariance:
-                break
+            #p=errorshots/(i+1)    
+            #if i>10 and p*(1-p)<=self._maxvariance:
+            #    break
             
-        self._logical_error_distribution[W]=p
+        self._logical_error_distribution[W]=errorshots/self._shots
         #print(f"Sample done! W={W}")
 
 
@@ -393,7 +434,7 @@ def test_QEPG():
     assert  np.array_equal(measureresult, [1,1])
 
 
-
+from multiprocessing import Process, Pool
 
 
 
@@ -418,7 +459,7 @@ if __name__ == "__main__":
     '''
 
 
-    
+    '''
     stim_circuit=stim.Circuit.generated("repetition_code:memory",rounds=1,distance=3).flattened()
     stim_str=rewrite_stim_code(str(stim_circuit))
 
@@ -452,6 +493,56 @@ if __name__ == "__main__":
     sampler.calc_logical_error_rate()
     print(sampler._logical_error_distribution)
     print(sampler._logical_error_rate)
-    
+    '''
 
-    #test_QEPG() 
+    stim_circuit=stim.Circuit.generated("repetition_code:memory",rounds=15,distance=30).flattened()
+    stim_str=rewrite_stim_code(str(stim_circuit))
+
+    #print(stim_str)
+
+    circuit=CliffordCircuit(2)
+    circuit.set_error_rate(0.2)
+    circuit.compile_from_stim_circuit_str(stim_str)
+
+
+
+    detector_error_model = circuit._stimcircuit.detector_error_model(decompose_errors=True)
+    matcher = pymatching.Matching.from_detector_error_model(detector_error_model)
+
+
+
+    QEPGgraph=QEPG(circuit)
+    QEPGgraph.compute_graph()
+
+
+    total_noise=circuit._totalnoise
+    print(total_noise)
+    W=5
+    parity_group=circuit.get_parityMatchGroup()
+    observable=circuit.get_observable()
+
+
+    inputs = [(total_noise,W,QEPGgraph, parity_group, observable) for _ in range(10)]
+    
+    # Create a pool of worker processes
+    with Pool(processes=40) as pool:
+        # pool.map will gather the output from each call to `worker`
+        results = pool.starmap(sample_noise_and_calc_result, inputs)
+
+    # 'results' is a list of lists, e.g., [[1, 10, 100], [2, 20, 200], ...]
+    # You can concatenate them using a list comprehension or itertools.chain.
+    detections = [result[0] for result in results]
+    detections=np.array(detections)
+
+    observables = [result[1] for result in results]
+
+    print("-------------------------------------------")
+    print(detections)
+    print("+++++++++++++++++++++++++++++++++++++++++++")
+    print(detections.shape)
+
+
+    predictions = matcher.decode_batch(detections)
+
+
+    print(predictions)
