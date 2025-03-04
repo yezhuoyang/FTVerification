@@ -352,8 +352,10 @@ class WSampler():
         for i in range(self._totalnoise):
             #print("W=",i)
             self.calc_error_rate_with_fixed_weight(i)
+            '''
             if(i>self._distance*2):
                 break
+            '''
             self._logical_error_rate+=self._binomial_weights[i]*self._logical_error_distribution[i]
 
         return self._logical_error_rate

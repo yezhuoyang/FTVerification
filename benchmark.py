@@ -29,8 +29,8 @@ class StimSurface():
                 ),
                 json_metadata={'d': d, 'p': noise},
             )
-            for d in [15]
-            for noise in [0.00000001,0.0000001,0.000001,0.00001,0.00005,0.0001,0.0002,0.0005,0.001,0.01,0.1,0.2]
+            for d in [3,5,7]
+            for noise in [0.0005, 0.0010, 0.0015, 0.0020, 0.0025, 0.0030, 0.0035, 0.0040, 0.0045, 0.0050, 0.01, 0.015, 0.020, 0.025, 0.030]
         ]
 
         collected_stats: List[sinter.TaskStats] = sinter.collect(
@@ -53,7 +53,7 @@ class StimSurface():
         #ax.set_ylim(5e-1, 5e-2)
         #ax.set_xlim(0.000, 0.004)
         ax.loglog()
-        ax.set_title("Repetition Code Error Rates (Phenomenological Noise)")
+        ax.set_title("Surface Code Error Rates (Phenomenological Noise)")
         ax.set_xlabel("Phyical Error Rate")
         ax.set_ylabel("Logical Error Rate per Shot")
         ax.grid(which='major')
@@ -83,23 +83,30 @@ class mySurface():
         circuit.compile_from_stim_circuit_str(stim_str)
         self._circuit=circuit
 
-        self._sampler=WSampler(self._circuit)
+        self._sampler=WSampler(self._circuit,distance=distance)
 
-        self._sampler.construct_QPEG()
-
-        self._sampler.set_shots(20)
+       
+        self._sampler.set_shots(100)
         self._sampler.construct_detector_model()
 
 
     def calc_threhold(self):
         logical_list=[]
-        dvals=[5,7,9,11]
-        noise_list=[0.00001,0.00005,0.0001,0.0002,0.0005,0.001,0.005, 0.008, 0.01, 0.011, 0.012,0.02,0.04]
+        dvals=[3,5,7]
+        noise_list=[0.0005, 0.0010, 0.0015, 0.0020, 0.0025, 0.0030, 0.0035, 0.0040, 0.0045, 0.0050, 0.01, 0.015, 0.020, 0.025, 0.030]
+        QPEG=None
         for d in dvals:
             tmp_list=[]
+            hasQP=False
             for noise in noise_list:
                 self.generated(d,noise)
-                print("Start sampling!")
+                if not hasQP:
+                    self._sampler.construct_QPEG()
+                    QPEG=self._sampler._QPEGraph
+                    hasQP=True
+
+                self._sampler._QPEGraph=QPEG
+                print(f"Start sampling!  d= {d} Physical Error rate={noise }")
                 self._sampler.calc_logical_error_rate()
                 print(f"d= {d} Physical Error rate={noise }, Logical Error rate:{self._sampler._logical_error_rate}")
                 tmp_list.append(self._sampler._logical_error_rate)
@@ -171,5 +178,5 @@ def compare_shots():
 
 if __name__ == "__main__":
 
-    surf=StimSurface()
+    surf=mySurface()
     surf.calc_threhold()
