@@ -1,6 +1,7 @@
 from paulitracer import *
 from multiprocessing import Process, Pool
-
+import os
+import signal
 
 
 '''
@@ -243,6 +244,12 @@ def sample_noise_and_calc_result(totalnoise,W,QPEGraph:QEPG, parity_group, obser
 
 
 
+
+def init_worker():
+    # Ignore SIGINT in worker processes so that only the main process catches it.
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
 class WSampler():
     def __init__(self, circuit:CliffordCircuit,distance=3):
         self._inducedNoise=["I"]*circuit._qubit_num
@@ -393,10 +400,19 @@ class WSampler():
 
         inputs = [(total_noise,W,QEPGgraph, parity_group, observable) for _ in range(self._shots)]
         
-        # Create a pool of worker processes
-        with Pool(processes=40) as pool:
-            # pool.map will gather the output from each call to `worker`
+
+        pool = Pool(processes=os.cpu_count(), initializer=init_worker)
+
+        try:
+            # starmap is a blocking call that collects results from each process.
             results = pool.starmap(sample_noise_and_calc_result, inputs)
+        except KeyboardInterrupt:
+            # Handle Ctrl-C gracefully.
+            print("KeyboardInterrupt received. Terminating pool...")
+            pool.terminate()
+            pool.join()
+            return  # or re-raise if you want to propagate the exception
+
 
         # 'results' is a list of lists, e.g., [[1, 10, 100], [2, 20, 200], ...]
         # You can concatenate them using a list comprehension or itertools.chain.
@@ -421,15 +437,67 @@ class WSampler():
 
 
     def calc_logical_error_rate(self):
+
+        maxW=0
         for i in range(self._totalnoise):
-            #print("W=",i)
-            #if(i>self._distance*2+10):
-            #    self._logical_error_rate+=self._binomial_weights[i]*1
-            #    continue
-            if(self._binomial_weights[i]<1e-6):
+            if(self._binomial_weights[i]>1e-12):
+                maxW=i
                 continue
-            self.calc_error_rate_with_fixed_weight(i)
+            else:
+                break
+
+        if maxW<=30:
+            maxW=30
+
+        total_noise=self._totalnoise
+        parity_group=self._circuit.get_parityMatchGroup()
+        observable=self._circuit.get_observable()
+        QEPGgraph=self._QPEGraph
+
+        inputs=[]
+        for i in range(0,maxW):
+            inputs=inputs+[(total_noise,i,QEPGgraph, parity_group, observable) for _ in range(self._shots)]
+        
+        
+        pool = Pool(processes=os.cpu_count(), initializer=init_worker)
+
+        try:
+            # starmap is a blocking call that collects results from each process.
+            results = pool.starmap(sample_noise_and_calc_result, inputs)
+        except KeyboardInterrupt:
+            # Handle Ctrl-C gracefully.
+            print("KeyboardInterrupt received. Terminating pool...")
+            pool.terminate()
+            pool.join()
+            return  # or re-raise if you want to propagate the exception
+
+
+        # 'results' is a list of lists, e.g., [[1, 10, 100], [2, 20, 200], ...]
+        # You can concatenate them using a list comprehension or itertools.chain.
+        detections = np.array([result[0] for result in results])
+        observables = [result[1] for result in results]
+
+
+        detector_error_model = self._circuit._stimcircuit.detector_error_model(decompose_errors=True)
+        matcher = pymatching.Matching.from_detector_error_model(detector_error_model)
+
+
+        predictions = matcher.decode_batch(detections)
+
+        flattened_predictions = [item for sublist in predictions for item in sublist]
+        flattened_observables = [item for sublist in observables for item in sublist]   
+
+
+
+        for i in range(0,maxW):
+            tmp_flattened_predictions= flattened_predictions[i*self._shots:(i+1)*self._shots]
+            tmp_flattened_observables= flattened_observables[i*self._shots:(i+1)*self._shots]
+            errorshots = sum(1 for a, b in zip(tmp_flattened_predictions, tmp_flattened_observables) if a != b)
+            self._logical_error_distribution[i]=errorshots/self._shots   
             self._logical_error_rate+=self._binomial_weights[i]*self._logical_error_distribution[i]
+
+             
+        
         #print(f"------------Error distribution--------Total Number error: {self._totalnoise}-------------")
         #print(self._logical_error_distribution)
         #print("------------Binomial weights---------------------")
@@ -516,6 +584,8 @@ if __name__ == "__main__":
     print(sampler._logical_error_rate)
     '''
 
+
+    '''
     stim_circuit=stim.Circuit.generated("repetition_code:memory",rounds=15,distance=30).flattened()
     stim_str=rewrite_stim_code(str(stim_circuit))
 
@@ -577,3 +647,4 @@ if __name__ == "__main__":
     not_matching_count = sum(1 for a, b in zip(flattened_predictions, flattened_observables) if a != b)
 
     print(not_matching_count)
+    '''

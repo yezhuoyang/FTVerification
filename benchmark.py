@@ -87,7 +87,7 @@ class mySurface():
         self._sampler=WSampler(self._circuit,distance=distance)
 
        
-        self._sampler.set_shots(30)
+        self._sampler.set_shots(100)
         self._sampler.construct_detector_model()
 
 
