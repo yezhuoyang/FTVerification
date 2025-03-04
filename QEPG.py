@@ -233,6 +233,9 @@ class WSampler():
         self.calc_binomial_weight()
 
 
+        self._maxvariance=1e-8
+
+
 
     def construct_QPEG(self):
         self._QPEGraph=QEPG(self._circuit)
@@ -343,7 +346,12 @@ class WSampler():
             self.sample_noise(W)
             if self.has_logical_error():
                 errorshots+=1
-        self._logical_error_distribution[W]=errorshots/self._shots
+
+            p=errorshots/(i+1)    
+            if i>10 and p*(1-p)<=self._maxvariance:
+                break
+            
+        self._logical_error_distribution[W]=p
         #print(f"Sample done! W={W}")
 
 
