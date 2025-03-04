@@ -70,6 +70,7 @@ class mySurface():
         self._circuit=None
         self._tracer=None
         self._sampler=None
+        self._QPEGGraph=None
         self._final_list=[]
         pass
 
@@ -86,7 +87,7 @@ class mySurface():
         self._sampler=WSampler(self._circuit,distance=distance)
 
        
-        self._sampler.set_shots(100)
+        self._sampler.set_shots(500)
         self._sampler.construct_detector_model()
 
 
@@ -94,7 +95,6 @@ class mySurface():
         logical_list=[]
         dvals=[3,5,7]
         noise_list=[0.0005, 0.0010, 0.0015, 0.0020, 0.0025, 0.0030, 0.0035, 0.0040, 0.0045, 0.0050, 0.01, 0.015, 0.020, 0.025, 0.030]
-        QPEG=None
         for d in dvals:
             tmp_list=[]
             hasQP=False
@@ -102,10 +102,10 @@ class mySurface():
                 self.generated(d,noise)
                 if not hasQP:
                     self._sampler.construct_QPEG()
-                    QPEG=self._sampler._QPEGraph
+                    self._QPEG=self._sampler._QPEGraph
                     hasQP=True
 
-                self._sampler._QPEGraph=QPEG
+                self._sampler._QPEGraph=self._QPEG
                 print(f"Start sampling!  d= {d} Physical Error rate={noise }")
                 self._sampler.calc_logical_error_rate()
                 print(f"d= {d} Physical Error rate={noise }, Logical Error rate:{self._sampler._logical_error_rate}")

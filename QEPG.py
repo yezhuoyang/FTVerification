@@ -351,13 +351,17 @@ class WSampler():
     def calc_logical_error_rate(self):
         for i in range(self._totalnoise):
             #print("W=",i)
+            #if(i>self._distance*2+10):
+            #    self._logical_error_rate+=self._binomial_weights[i]*1
+            #    continue
+            if(self._binomial_weights[i]<1e-6):
+                continue
             self.calc_error_rate_with_fixed_weight(i)
-            '''
-            if(i>self._distance*2):
-                break
-            '''
             self._logical_error_rate+=self._binomial_weights[i]*self._logical_error_distribution[i]
-
+        #print(f"------------Error distribution--------Total Number error: {self._totalnoise}-------------")
+        #print(self._logical_error_distribution)
+        #print("------------Binomial weights---------------------")
+        #print(self._binomial_weights)
         return self._logical_error_rate
 
 
