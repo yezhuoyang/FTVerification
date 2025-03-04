@@ -1,4 +1,5 @@
 from paulitracer import *
+from multiprocessing import Process, Pool
 
 
 
@@ -233,11 +234,11 @@ def sample_noise_and_calc_result(totalnoise,W,QPEGraph:QEPG, parity_group, obser
             parity+=1
     parity=parity%2
     if parity==1:
-        tmp_observable_flips.append(True)
+        tmp_observable_flips.append(1)
     else:
-        tmp_observable_flips.append(False)
+        tmp_observable_flips.append(0)
 
-    return tmp_detection_events, [tmp_observable_flips]
+    return tmp_detection_events, tmp_observable_flips
 
 
 
@@ -383,17 +384,39 @@ class WSampler():
 
     def calc_error_rate_with_fixed_weight(self, W):
         errorshots=0
-        for i in range(self._shots):
-            self.sample_noise(W)
-            if self.has_logical_error():
-                errorshots+=1
 
-            #p=errorshots/(i+1)    
-            #if i>10 and p*(1-p)<=self._maxvariance:
-            #    break
-            
+        total_noise=self._totalnoise
+        parity_group=self._circuit.get_parityMatchGroup()
+        observable=self._circuit.get_observable()
+        QEPGgraph=self._QPEGraph
+
+
+        inputs = [(total_noise,W,QEPGgraph, parity_group, observable) for _ in range(self._shots)]
+        
+        # Create a pool of worker processes
+        with Pool(processes=40) as pool:
+            # pool.map will gather the output from each call to `worker`
+            results = pool.starmap(sample_noise_and_calc_result, inputs)
+
+        # 'results' is a list of lists, e.g., [[1, 10, 100], [2, 20, 200], ...]
+        # You can concatenate them using a list comprehension or itertools.chain.
+        detections = np.array([result[0] for result in results])
+        observables = [result[1] for result in results]
+
+
+    
+        detector_error_model = self._circuit._stimcircuit.detector_error_model(decompose_errors=True)
+        matcher = pymatching.Matching.from_detector_error_model(detector_error_model)
+
+
+        predictions = matcher.decode_batch(detections)
+
+        flattened_predictions = [item for sublist in predictions for item in sublist]
+        flattened_observables = [item for sublist in observables for item in sublist]   
+
+        errorshots = sum(1 for a, b in zip(flattened_predictions, flattened_observables) if a != b)
+
         self._logical_error_distribution[W]=errorshots/self._shots
-        #print(f"Sample done! W={W}")
 
 
 
@@ -433,8 +456,6 @@ def test_QEPG():
 
     assert  np.array_equal(measureresult, [1,1])
 
-
-from multiprocessing import Process, Pool
 
 
 
@@ -546,3 +567,13 @@ if __name__ == "__main__":
 
 
     print(predictions)
+    print("-------------------------------------------")   
+    print(observables)
+
+
+    flattened_predictions = [item for sublist in predictions for item in sublist]
+    flattened_observables = [item for sublist in observables for item in sublist]   
+
+    not_matching_count = sum(1 for a, b in zip(flattened_predictions, flattened_observables) if a != b)
+
+    print(not_matching_count)
