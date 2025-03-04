@@ -202,7 +202,7 @@ class NaiveSampler():
 
 
 class WSampler():
-    def __init__(self, circuit:CliffordCircuit):
+    def __init__(self, circuit:CliffordCircuit,distance=3):
         self._inducedNoise=["I"]*circuit._qubit_num
         self._measuredError={}
         self._qubit_num=circuit._qubit_num     
@@ -225,15 +225,22 @@ class WSampler():
         self._noise_vector=np.array([0]*3*self._totalnoise)
 
 
-        self._QPEGraph=QEPG(circuit)
-        self._QPEGraph.compute_graph()
+        self._QPEGraph=None
+
+        self._distance=distance
 
         self._binomial_weights=[0]*self._totalnoise
         self.calc_binomial_weight()
 
 
+
+    def construct_QPEG(self):
+        self._QPEGraph=QEPG(self._circuit)
+        self._QPEGraph.compute_graph()
+
+
     def set_shots(self, shots):
-        self._shots=shots
+        self._shots=int(shots/(2*self._distance))
 
 
     def set_dataqubits(self, dataqubits):
@@ -343,7 +350,10 @@ class WSampler():
 
     def calc_logical_error_rate(self):
         for i in range(self._totalnoise):
+            #print("W=",i)
             self.calc_error_rate_with_fixed_weight(i)
+            if(i>self._distance*2):
+                break
             self._logical_error_rate+=self._binomial_weights[i]*self._logical_error_distribution[i]
 
         return self._logical_error_rate

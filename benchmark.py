@@ -29,8 +29,8 @@ class StimSurface():
                 ),
                 json_metadata={'d': d, 'p': noise},
             )
-            for d in [3, 5, 7,9,11]
-            for noise in [0.00001,0.00005,0.0001,0.0002,0.0005,0.001,0.005, 0.008, 0.01, 0.011, 0.012,0.002,0.004]
+            for d in [15]
+            for noise in [0.00000001,0.0000001,0.000001,0.00001,0.00005,0.0001,0.0002,0.0005,0.001,0.01,0.1,0.2]
         ]
 
         collected_stats: List[sinter.TaskStats] = sinter.collect(
@@ -73,6 +73,7 @@ class mySurface():
         self._final_list=[]
         pass
 
+    
 
     def generated(self,distance,errorrate):
         stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance*3,distance=distance).flattened()
@@ -82,16 +83,17 @@ class mySurface():
         circuit.compile_from_stim_circuit_str(stim_str)
         self._circuit=circuit
 
-        self._tracer=PauliTracer(self._circuit)
-        self._sampler=WSampler(circuit)
-    
-        self._sampler.set_shots(10)
+        self._sampler=WSampler(self._circuit)
+
+        self._sampler.construct_QPEG()
+
+        self._sampler.set_shots(20)
         self._sampler.construct_detector_model()
-        print("Generated!")
+
 
     def calc_threhold(self):
         logical_list=[]
-        dvals=[3,5]
+        dvals=[5,7,9,11]
         noise_list=[0.00001,0.00005,0.0001,0.0002,0.0005,0.001,0.005, 0.008, 0.01, 0.011, 0.012,0.02,0.04]
         for d in dvals:
             tmp_list=[]
@@ -122,8 +124,52 @@ class mySurface():
 
 
 
+
+
+def compare_shots():
+
+    shots=[10,20,50,100,150,200,250,500,750,1000,1500,2000,3000,4000,5000,6000,7000,10000,100000,200000,1000000]
+    logical_list=[]
+    niave_logical_list=[]
+
+    for shot in shots:
+
+        
+        stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=2,distance=3).flattened()
+        stim_str=rewrite_stim_code(str(stim_circuit))
+        circuit=CliffordCircuit(2)
+        circuit.set_error_rate(0.0001)
+        circuit.compile_from_stim_circuit_str(stim_str)
+
+        sampler=WSampler(circuit,distance=5)
+
+        sampler.construct_QPEG()
+
+        sampler.set_shots(shot)
+        sampler.construct_detector_model()
+
+        sampler.calc_logical_error_rate()
+
+        print(sampler._logical_error_rate)
+        logical_list.append(sampler._logical_error_rate)
+
+        Nsampler=NaiveSampler(circuit)
+        Nsampler.set_shots(shot)
+        Nsampler.calc_logical_error_rate()
+
+        print(Nsampler._logical_error_rate)
+        niave_logical_list.append(Nsampler._logical_error_rate)
+
+
+        # Now make the log–log plot and save to 'tmp.png'.
+    plt.figure(figsize=(6,4))
+    plt.plot(shots, logical_list, marker='o', label=f"QEPG")
+    plt.plot(shots, niave_logical_list, marker='o', label=f"Naive")
+    plt.savefig("tmp3.png", dpi=300)
+    plt.close()
+
+
 if __name__ == "__main__":
 
-
-    my_calc=mySurface()
-    my_calc.calc_threhold()
+    surf=StimSurface()
+    surf.calc_threhold()

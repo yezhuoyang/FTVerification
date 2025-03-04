@@ -503,30 +503,6 @@ class CliffordCircuit:
 
 
 
-import random
-
-
-def sample_fixed_one_two_three(N, k):
-    """
-    Returns a list of length N containing exactly k ones 
-    (and N-k zeros), in a random order.
-    """
-    # Step 1: Create a list of k ones and N-k zeros
-    arr = [1]*k + [0]*(N-k)
-    
-    # Step 2: Create a list of 1 or two
-    arrtype=[]
-    
-    for i in range(N):
-        arrtype.append(random.randint(1,3))
-
-    
-    # Step 2: Shuffle the list randomly
-    random.shuffle(arr)
-    random.shuffle(arrtype)
-    
-    return [a * b for a, b in zip(arr, arrtype)]
-
 
 
     
@@ -795,61 +771,6 @@ class PauliTracer:
 
 
 
-class NaiveSampler():
-    def __init__(self, circuit:CliffordCircuit):
-        self._qubit_num=circuit._qubit_num     
-        self._circuit=circuit
-        self._totalnoise=circuit.get_totalnoise()
-
-        self._logical_error_rate=0
-
-        self._dataqubits=None
-        self._syndromequbits=None
-        self._stimcircuit=None
-
-        self._shots=10
-
-    def set_shots(self, shots):
-        self._shots=shots
-
-
-    def calc_logical_error_rate(self):
-        self._stimcircuit=self._circuit.get_stim_circuit()
-
-        sampler = self._stimcircuit.compile_detector_sampler()
-       
-        detector_error_model = self._stimcircuit.detector_error_model(decompose_errors=True)
-
-        num_errors = 0
-
-        for i in range(self._shots):
-            detection_events, observable_flips = sampler.sample(1, separate_observables=True)
-            #detection_events, observable_flips = sampler.sample(self._shots, separate_observables=True)
-            # Configure a decoder using the circuit.
-            #print(detection_events)
-            #print(observable_flips)
-            
-            
-            matcher = pymatching.Matching.from_detector_error_model(detector_error_model)
-            predictions = matcher.decode_batch(detection_events)
-            #print(predictions)
-    
-        
-            actual_for_shot = observable_flips[0]
-            predicted_for_shot = predictions[0]
-            if not np.array_equal(actual_for_shot, predicted_for_shot):
-                num_errors += 1
-        
-        self._logical_error_rate=num_errors/self._shots
-
-        return self._logical_error_rate
-
-
-    
-
-
-
-
 
 rep_decoder={"01111":"IXI","00101":"IIX","01010":"XII"}
 
@@ -1091,40 +1012,6 @@ if __name__ == "__main__":
     print(Nsampler._logical_error_rate)
     '''
 
-    stim_circuit=stim.Circuit.generated("repetition_code:memory",rounds=1,distance=3).flattened()
-    stim_str=rewrite_stim_code(str(stim_circuit))
-
-    #print(stim_str)
-
-    circuit=CliffordCircuit(2)
-    circuit.set_error_rate(0.1)
-    circuit.compile_from_stim_circuit_str(stim_str)
-
-
-    #circuit_stim=circuit._stimcircuit
-
-
-    
-    Nsampler=NaiveSampler(circuit)
-    Nsampler.set_shots(10000)
-    Nsampler.calc_logical_error_rate()
-    print(Nsampler._logical_error_rate)
-
-    print("---------------------------------------------------------------")
-    #print(circuit._stimcircuit)
-
-
-    print(circuit._qubit_num)
-    
-    tracer=PauliTracer(circuit) 
-    sampler=WSampler(circuit)
-    sampler.set_shots(5000)
-    sampler.construct_detector_model()
-
-    sampler.calc_logical_error_rate()
-    print(sampler._logical_error_distribution)
-    print(sampler._logical_error_rate)
-    
     
 
 
