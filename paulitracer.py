@@ -92,10 +92,16 @@ class CliffordCircuit:
         #For example, if we require M0=M1, M2=M3, then the match group is [[0,1],[2,3]]
         self._parityMatchGroup=[]
         self._observable=[]
+
+        self._stim_str=None
         self._stimcircuit=stim.Circuit()
 
 
         #self._error_channel
+
+
+    def set_stim_str(self, stim_str):
+        self._stim_str=stim_str
 
 
     def set_error_rate(self, error_rate):

@@ -290,6 +290,8 @@ class WSampler():
 
         self._maxvariance=1e-8
 
+        self._stim_str=circuit._stim_str
+
 
 
     def construct_QPEG(self):
@@ -393,6 +395,127 @@ class WSampler():
         for i in range(self._totalnoise):
             self._binomial_weights[i]=self.binomial_weight(i)
         
+
+    
+    def calc_logical_error_rate_parallel(self,error_rate_list):
+
+
+        exp_noise=int(self._totalnoise*self._circuit._error_rate)
+        min_W=max(0,exp_noise-20)
+        max_W=min(self._totalnoise,exp_noise+20)
+
+        '''
+        for i in range(self._totalnoise):
+            if(self._binomial_weights[i]>1e-12):
+                maxW=i
+                continue
+            else:
+                break
+
+        if maxW<=30:
+            maxW=30
+        '''
+        #self._circuit.compile_from_stim_circuit_str(self._circuit._stim_str)
+        total_noise=self._totalnoise
+        parity_group=self._circuit.get_parityMatchGroup()
+        observable=self._circuit.get_observable()
+        QEPGgraph=self._QPEGraph
+        total_meas=self._circuit._totalMeas
+
+        XerrorMatrix=QEPGgraph._XerrorMatrix
+        YerrorMatrix=QEPGgraph._YerrorMatrix
+        detectorMatrix=(XerrorMatrix+YerrorMatrix)%2
+
+        stim_str=self._circuit._stim_str
+
+
+        shm_dec = shared_memory.SharedMemory(create=True, size=detectorMatrix.nbytes)
+        # Create a NumPy array backed by the shared memory
+        shared_array = np.ndarray(detectorMatrix.shape, dtype=detectorMatrix.dtype, buffer=shm_dec.buf)
+        # Copy the data into shared memory
+        shared_array[:] = detectorMatrix[:]    
+
+
+
+        inputs=[]
+        for i in range(max_W-min_W+1):
+            inputs=inputs+[(self._shots,total_noise,total_meas,i,XerrorMatrix.dtype.name,shm_dec.name,parity_group, observable)]
+        
+        
+        pool = Pool(processes=os.cpu_count(), initializer=init_worker)
+
+        try:
+            # starmap is a blocking call that collects results from each process.
+            results = pool.starmap(sample_noise_and_calc_result, inputs)
+        except KeyboardInterrupt:
+            # Handle Ctrl-C gracefully.
+            print("KeyboardInterrupt received. Terminating pool...")
+            pool.terminate()
+            pool.join()
+            return  # or re-raise if you want to propagate the exception
+
+
+        # 'results' is a list of lists, e.g., [[1, 10, 100], [2, 20, 200], ...]
+        # You can concatenate them using a list comprehension or itertools.chain.
+        detections=np.array([item for result in results for item in result[0]])
+        #detections = np.array([result[0] for result in results])
+        #observables = [result[1] for result in results]
+        observables=np.array([item for result in results for item in result[1]])       
+
+        print("-------------detections shape------------------------------")
+        print(detections.shape)
+
+
+
+
+        result_list=[]
+        for error_rate in error_rate_list:
+
+            #self._circuit.set_error_rate(error_rate)
+            #self._circuit.compile_from_stim_circuit_str(self._circuit._stim_str)
+            self._circuit=CliffordCircuit(2)
+            self._circuit.set_error_rate(error_rate)
+            self._circuit.compile_from_stim_circuit_str(stim_str)
+            
+            self._totalnoise=self._circuit.get_totalnoise()
+
+            detector_error_model = self._circuit._stimcircuit.detector_error_model(decompose_errors=True)
+            matcher = pymatching.Matching.from_detector_error_model(detector_error_model)
+            #print("-------------length of parity match group------------------------------")            
+            #print(len(self._circuit._parityMatchGroup))
+            predictions = matcher.decode_batch(detections)
+
+            flattened_predictions = [item for sublist in predictions for item in sublist]
+            flattened_observables = [item for sublist in observables for item in sublist]   
+
+            self._logical_error_distribution=[0]*self._totalnoise
+            self._binomial_weights=[0]*self._totalnoise
+
+            self.calc_binomial_weight()
+
+            print(self._binomial_weights)
+            self._logical_error_rate=0
+
+            for i in range(0,max_W-min_W+1):
+                tmp_flattened_predictions= flattened_predictions[i*self._shots:(i+1)*self._shots]
+                tmp_flattened_observables= flattened_observables[i*self._shots:(i+1)*self._shots]
+                errorshots = sum(1 for a, b in zip(tmp_flattened_predictions, tmp_flattened_observables) if a != b)
+                print("Error shots:")
+                print(errorshots)
+                #print(len(self._logical_error_distribution))
+                #print(min_W+i)
+                self._logical_error_distribution[min_W+i]=errorshots/self._shots   
+                self._logical_error_rate+=self._binomial_weights[min_W+i]*self._logical_error_distribution[min_W+i]
+
+            result_list.append(self._logical_error_rate)
+        
+        #print(f"------------Error distribution--------Total Number error: {self._totalnoise}-------------")
+        #print(self._logical_error_distribution)
+        #print("------------Binomial weights---------------------")
+        #print(self._binomial_weights)
+        return result_list
+
+
 
 
     def calc_logical_error_rate(self):

@@ -82,6 +82,7 @@ class mySurface():
         stim_str=rewrite_stim_code(str(stim_circuit))
         circuit=CliffordCircuit(2)
         circuit.set_error_rate(errorrate)
+        circuit.set_stim_str(stim_str)
         circuit.compile_from_stim_circuit_str(stim_str)
         self._circuit=circuit
 
@@ -92,11 +93,50 @@ class mySurface():
         self._sampler.construct_detector_model()
 
 
+    def calc_threhold_parallel(self):
+        logical_list=[]
+        dvals=[3,5,7]
+        noise_list=[0.0005, 0.0010, 0.0015, 0.0020, 0.0025, 0.0030, 0.0035, 0.0040, 0.0045, 0.0050, 0.01, 0.015, 0.020, 0.025, 0.030]
+        for d in dvals:
+            distance=d
+
+            circuit=CliffordCircuit(2)
+            self._circuit=circuit
+            self._sampler=WSampler(self._circuit,distance=0)
+            self._sampler.set_shots(200)
+
+            stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance*3,distance=distance).flattened()
+            #print(stim_circuit)
+            stim_circuit=rewrite_stim_code(str(stim_circuit))
+            self._circuit.set_stim_str(stim_circuit)
+            self._circuit.compile_from_stim_circuit_str(stim_circuit)
+            self._sampler.construct_QPEG()
+            self._QPEG=self._sampler._QPEGraph
+            tmp_logical_error_list=self._sampler.calc_logical_error_rate_parallel(noise_list)
+            print(tmp_logical_error_list)
+            logical_list.append(tmp_logical_error_list)
+
+
+        # Now make the log–log plot and save to 'tmp.png'.
+        plt.figure(figsize=(6,4))
+        for i, d in enumerate(dvals):
+            plt.plot(noise_list, logical_list[i], marker='o', label=f"d = {d}")
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.xlabel("Physical Error Rate")
+        plt.ylabel("Logical Error Rate per Shot")
+        plt.title("Repetition Code Error Rates (Phenomenological Noise)")
+        plt.legend()
+        plt.grid(True, which='both', linestyle='--', alpha=0.5)
+        plt.tight_layout()
+        plt.savefig("tmp2.png", dpi=300)
+        plt.close()
+
     def calc_threhold(self):
         logical_list=[]
         #dvals=[3,5,7]
         #noise_list=[0.0005, 0.0010, 0.0015, 0.0020, 0.0025, 0.0030, 0.0035, 0.0040, 0.0045, 0.0050, 0.01, 0.015, 0.020, 0.025, 0.030]
-        dvals=[3]
+        dvals=[5]
         noise_list=[0.0005]
         for d in dvals:
             tmp_list=[]
@@ -312,17 +352,17 @@ def test_sample_noise_differences(shots=10, totalnoise=5, total_meas=4, W=2):
 if __name__ == "__main__":
 
 
-    profiler = cProfile.Profile()
-    profiler.enable()
+    #profiler = cProfile.Profile()
+    #profiler.enable()
 
 
     surf=mySurface()
-    surf.calc_threhold()
+    surf.calc_threhold_parallel()
 
-    profiler.disable()
-    stats = pstats.Stats(profiler)
-    stats.sort_stats('cumtime')  # Sort by cumulative time
-    stats.print_stats(10)        # Limit to top 10 entries
+    #profiler.disable()
+    #stats = pstats.Stats(profiler)
+    #stats.sort_stats('cumtime')  # Sort by cumulative time
+    #stats.print_stats(20)        # Limit to top 10 entries
     #profiler.print_stats(sort='cumtime')  # Sort by cumulative time
     #result=sample_fixed_one_two_three(10,6)
     #print(result)
