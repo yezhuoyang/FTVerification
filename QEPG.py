@@ -2,6 +2,7 @@ from paulitracer import *
 from multiprocessing import Process, Pool
 import os
 import signal
+from multiprocessing import shared_memory
 
 
 '''
@@ -202,7 +203,7 @@ class NaiveSampler():
     
 
 #Sample noise with weight K
-def sample_noise_and_calc_result(totalnoise,W,QPEGraph:QEPG, parity_group, observable):
+def sample_noise_and_calc_result(totalnoise,total_meas,W,dtype,shm_x_name,shm_y_name,shm_z_name, parity_group, observable):
     random_index=sample_fixed_one_two_three(totalnoise,W)
     noise_vector=np.array([0]*3*totalnoise)
 
@@ -214,7 +215,39 @@ def sample_noise_and_calc_result(totalnoise,W,QPEGraph:QEPG, parity_group, obser
         elif random_index[i]==3:
             noise_vector[i+2*totalnoise]=1           
 
-    detectorresult=QPEGraph.sample_error(noise_vector) 
+    shm_x = shared_memory.SharedMemory(name=shm_x_name)
+    XerrorMatrix = np.ndarray((total_meas,3*totalnoise), dtype=dtype, buffer=shm_x.buf)
+
+    shm_y = shared_memory.SharedMemory(name=shm_y_name)
+    YerrorMatrix = np.ndarray((total_meas,3*totalnoise), dtype=dtype, buffer=shm_y.buf)
+
+    shm_z = shared_memory.SharedMemory(name=shm_z_name)
+    ZerrorMatrix = np.ndarray((total_meas,3*totalnoise), dtype=dtype, buffer=shm_z.buf)
+
+    xerror=np.matmul(XerrorMatrix, noise_vector)%2
+    yerror=np.matmul(YerrorMatrix, noise_vector)%2
+    zerror=np.matmul(ZerrorMatrix, noise_vector)%2
+    detectorresult=np.zeros(total_meas)
+    for i in range(total_meas):
+        tmpstr=str(xerror[i])+str(yerror[i])+str(zerror[i])
+        if tmpstr=='000':
+            detectorresult[i]=0
+        elif tmpstr=='001':
+            detectorresult[i]=0
+        elif tmpstr=='010':
+            detectorresult[i]=1
+        elif tmpstr=='011':
+            detectorresult[i]=1
+        elif tmpstr=='100':
+            detectorresult[i]=1
+        elif tmpstr=='101':
+            detectorresult[i]=1
+        elif tmpstr=='110':
+            detectorresult[i]=0
+        elif tmpstr=='111':
+            detectorresult[i]=0
+
+
 
     tmp_detection_events=[]
     for group in parity_group:
@@ -396,9 +429,37 @@ class WSampler():
         parity_group=self._circuit.get_parityMatchGroup()
         observable=self._circuit.get_observable()
         QEPGgraph=self._QPEGraph
+        total_meas=self._circuit._totalMeas
+
+        XerrorMatrix=QEPGgraph._XerrorMatrix
+        YerrorMatrix=QEPGgraph._YerrorMatrix
+        ZerrorMatrix=QEPGgraph._ZerrorMatrix
 
 
-        inputs = [(total_noise,W,QEPGgraph, parity_group, observable) for _ in range(self._shots)]
+        shm_x = shared_memory.SharedMemory(create=True, size=XerrorMatrix.nbytes)
+        # Create a NumPy array backed by the shared memory
+        shared_array = np.ndarray(XerrorMatrix.shape, dtype=XerrorMatrix.dtype, buffer=shm_x.buf)
+        # Copy the data into shared memory
+        shared_array[:] = XerrorMatrix[:]    
+
+
+        shm_y = shared_memory.SharedMemory(create=True, size=YerrorMatrix.nbytes)
+        # Create a NumPy array backed by the shared memory
+        shared_array = np.ndarray(YerrorMatrix.shape, dtype=YerrorMatrix.dtype, buffer=shm_y.buf)
+        # Copy the data into shared memory
+        shared_array[:] = YerrorMatrix[:]    
+
+
+        shm_z = shared_memory.SharedMemory(create=True, size=ZerrorMatrix.nbytes)
+        # Create a NumPy array backed by the shared memory
+        shared_array = np.ndarray(ZerrorMatrix.shape, dtype=ZerrorMatrix.dtype, buffer=shm_z.buf)
+        # Copy the data into shared memory
+        shared_array[:] = ZerrorMatrix[:]    
+
+
+
+
+        inputs=[(total_noise,total_meas,W,XerrorMatrix.dtype,shm_x.name,shm_y.name,shm_z.name,parity_group, observable) for _ in range(self._shots)]
         
 
         pool = Pool(processes=os.cpu_count(), initializer=init_worker)
@@ -438,7 +499,12 @@ class WSampler():
 
     def calc_logical_error_rate(self):
 
-        maxW=0
+
+        exp_noise=int(self._totalnoise*self._circuit._error_rate)
+        min_W=max(0,exp_noise-30)
+        max_W=min(self._totalnoise,exp_noise+30)
+
+        '''
         for i in range(self._totalnoise):
             if(self._binomial_weights[i]>1e-12):
                 maxW=i
@@ -448,15 +514,43 @@ class WSampler():
 
         if maxW<=30:
             maxW=30
+        '''
 
         total_noise=self._totalnoise
         parity_group=self._circuit.get_parityMatchGroup()
         observable=self._circuit.get_observable()
         QEPGgraph=self._QPEGraph
+        total_meas=self._circuit._totalMeas
+
+        XerrorMatrix=QEPGgraph._XerrorMatrix
+        YerrorMatrix=QEPGgraph._YerrorMatrix
+        ZerrorMatrix=QEPGgraph._ZerrorMatrix
+
+
+        shm_x = shared_memory.SharedMemory(create=True, size=XerrorMatrix.nbytes)
+        # Create a NumPy array backed by the shared memory
+        shared_array = np.ndarray(XerrorMatrix.shape, dtype=XerrorMatrix.dtype, buffer=shm_x.buf)
+        # Copy the data into shared memory
+        shared_array[:] = XerrorMatrix[:]    
+
+
+        shm_y = shared_memory.SharedMemory(create=True, size=YerrorMatrix.nbytes)
+        # Create a NumPy array backed by the shared memory
+        shared_array = np.ndarray(YerrorMatrix.shape, dtype=YerrorMatrix.dtype, buffer=shm_y.buf)
+        # Copy the data into shared memory
+        shared_array[:] = YerrorMatrix[:]    
+
+
+        shm_z = shared_memory.SharedMemory(create=True, size=ZerrorMatrix.nbytes)
+        # Create a NumPy array backed by the shared memory
+        shared_array = np.ndarray(ZerrorMatrix.shape, dtype=ZerrorMatrix.dtype, buffer=shm_z.buf)
+        # Copy the data into shared memory
+        shared_array[:] = ZerrorMatrix[:]    
+
 
         inputs=[]
-        for i in range(0,maxW):
-            inputs=inputs+[(total_noise,i,QEPGgraph, parity_group, observable) for _ in range(self._shots)]
+        for i in range(max_W-min_W+1):
+            inputs=inputs+[(total_noise,total_meas,i,XerrorMatrix.dtype,shm_x.name,shm_y.name,shm_z.name,parity_group, observable) for _ in range(self._shots)]
         
         
         pool = Pool(processes=os.cpu_count(), initializer=init_worker)
@@ -489,12 +583,12 @@ class WSampler():
 
 
 
-        for i in range(0,maxW):
+        for i in range(0,max_W-min_W+1):
             tmp_flattened_predictions= flattened_predictions[i*self._shots:(i+1)*self._shots]
             tmp_flattened_observables= flattened_observables[i*self._shots:(i+1)*self._shots]
             errorshots = sum(1 for a, b in zip(tmp_flattened_predictions, tmp_flattened_observables) if a != b)
-            self._logical_error_distribution[i]=errorshots/self._shots   
-            self._logical_error_rate+=self._binomial_weights[i]*self._logical_error_distribution[i]
+            self._logical_error_distribution[min_W+i]=errorshots/self._shots   
+            self._logical_error_rate+=self._binomial_weights[min_W+i]*self._logical_error_distribution[min_W+i]
 
              
         
