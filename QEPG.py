@@ -3,7 +3,7 @@ from multiprocessing import Process, Pool
 import os
 import signal
 from multiprocessing import shared_memory
-
+from noise_sampler import sample_noise_and_calc_result, cython_sample_noise_and_calc_result, sample_fixed_one_two_three
 
 '''
 Class of quantum error propagation graph
@@ -16,9 +16,9 @@ class QEPG:
 
         self._total_meas=self._circuit._totalMeas
         self._total_noise=self._circuit._totalnoise
-        self._XerrorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype=int)
-        self._YerrorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype=int)
-        self._ZerrorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype=int)
+        self._XerrorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype='uint8')
+        self._YerrorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype='uint8')
+        self._ZerrorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype='uint8')
 
 
     def compute_graph(self):
@@ -126,7 +126,7 @@ class QEPG:
 import random
 
 
-def sample_fixed_one_two_three(N, k):
+def python_sample_fixed_one_two_three(N, k):
     """
     Returns a list of length N containing exactly k ones 
     (and N-k zeros), in a random order.
@@ -203,7 +203,7 @@ class NaiveSampler():
     
 
 #Sample noise with weight K
-def sample_noise_and_calc_result(shots,totalnoise,total_meas,W,dtype,shm_detec_name,parity_group, observable):
+def python_sample_noise_and_calc_result(shots,totalnoise,total_meas,W,dtype,shm_detec_name,parity_group, observable):
     shm_detec = shared_memory.SharedMemory(name=shm_detec_name)
     dectectorMatrix = np.ndarray((total_meas,3*totalnoise), dtype=dtype, buffer=shm_detec.buf)  
     detection_events=[]
@@ -399,8 +399,8 @@ class WSampler():
 
 
         exp_noise=int(self._totalnoise*self._circuit._error_rate)
-        min_W=max(0,exp_noise-200)
-        max_W=min(self._totalnoise,exp_noise+200)
+        min_W=max(0,exp_noise-20)
+        max_W=min(self._totalnoise,exp_noise+20)
 
         '''
         for i in range(self._totalnoise):
@@ -435,7 +435,7 @@ class WSampler():
 
         inputs=[]
         for i in range(max_W-min_W+1):
-            inputs=inputs+[(self._shots,total_noise,total_meas,i,XerrorMatrix.dtype,shm_dec.name,parity_group, observable)]
+            inputs=inputs+[(self._shots,total_noise,total_meas,i,XerrorMatrix.dtype.name,shm_dec.name,parity_group, observable)]
         
         
         pool = Pool(processes=os.cpu_count(), initializer=init_worker)
