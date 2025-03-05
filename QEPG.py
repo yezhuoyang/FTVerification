@@ -399,8 +399,8 @@ class WSampler():
 
 
         exp_noise=int(self._totalnoise*self._circuit._error_rate)
-        min_W=max(0,exp_noise-50)
-        max_W=min(self._totalnoise,exp_noise+50)
+        min_W=max(0,exp_noise-200)
+        max_W=min(self._totalnoise,exp_noise+200)
 
         '''
         for i in range(self._totalnoise):
