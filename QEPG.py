@@ -203,47 +203,49 @@ class NaiveSampler():
     
 
 #Sample noise with weight K
-def sample_noise_and_calc_result(totalnoise,total_meas,W,dtype,shm_detec_name,parity_group, observable):
-    random_index=sample_fixed_one_two_three(totalnoise,W)
-    noise_vector=np.array([0]*3*totalnoise)
-
-    for i in range(totalnoise):
-        if random_index[i]==1:
-            noise_vector[i]=1
-        elif random_index[i]==2:
-            noise_vector[i+totalnoise]=1
-        elif random_index[i]==3:
-            noise_vector[i+2*totalnoise]=1           
-
+def sample_noise_and_calc_result(shots,totalnoise,total_meas,W,dtype,shm_detec_name,parity_group, observable):
     shm_detec = shared_memory.SharedMemory(name=shm_detec_name)
-    dectectorMatrix = np.ndarray((total_meas,3*totalnoise), dtype=dtype, buffer=shm_detec.buf)
+    dectectorMatrix = np.ndarray((total_meas,3*totalnoise), dtype=dtype, buffer=shm_detec.buf)  
+    detection_events=[]
+    observable_flips=[]
+    for i in range(shots):
+        random_index=sample_fixed_one_two_three(totalnoise,W)
+        noise_vector=np.array([0]*3*totalnoise)
+        for i in range(totalnoise):
+            if random_index[i]==1:
+                noise_vector[i]=1
+            elif random_index[i]==2:
+                noise_vector[i+totalnoise]=1
+            elif random_index[i]==3:
+                noise_vector[i+2*totalnoise]=1           
 
-    detectorresult=np.matmul(dectectorMatrix, noise_vector)%2
+        detectorresult=np.matmul(dectectorMatrix, noise_vector)%2
 
-    tmp_detection_events=[]
-    for group in parity_group:
+        tmp_detection_events=[]
+        for group in parity_group:
+            parity=0
+            for i in group:
+                if detectorresult[i]==1:
+                    parity+=1
+            parity=parity%2
+            if parity==1:
+                tmp_detection_events.append(True)
+            else:
+                tmp_detection_events.append(False)
+                
+        tmp_observable_flips=[]
         parity=0
-        for i in group:
-            if detectorresult[i]==1:
+        for index in observable:
+            if detectorresult[index]==1:
                 parity+=1
         parity=parity%2
         if parity==1:
-            tmp_detection_events.append(True)
+            tmp_observable_flips.append(1)
         else:
-            tmp_detection_events.append(False)
-            
-    tmp_observable_flips=[]
-    parity=0
-    for index in observable:
-        if detectorresult[index]==1:
-            parity+=1
-    parity=parity%2
-    if parity==1:
-        tmp_observable_flips.append(1)
-    else:
-        tmp_observable_flips.append(0)
-
-    return tmp_detection_events, tmp_observable_flips
+            tmp_observable_flips.append(0)
+        detection_events.append(tmp_detection_events)
+        observable_flips.append(tmp_observable_flips)
+    return detection_events, observable_flips
 
 
 
@@ -393,64 +395,6 @@ class WSampler():
         
 
 
-    def calc_error_rate_with_fixed_weight(self, W):
-        errorshots=0
-
-        total_noise=self._totalnoise
-        parity_group=self._circuit.get_parityMatchGroup()
-        observable=self._circuit.get_observable()
-        QEPGgraph=self._QPEGraph
-        total_meas=self._circuit._totalMeas
-
-        XerrorMatrix=QEPGgraph._XerrorMatrix
-        YerrorMatrix=QEPGgraph._YerrorMatrix
-        detectorMatrix=(XerrorMatrix+YerrorMatrix)%2
-
-        shm_dec = shared_memory.SharedMemory(create=True, size=detectorMatrix.nbytes)
-        # Create a NumPy array backed by the shared memory
-        shared_array = np.ndarray(detectorMatrix.shape, dtype=detectorMatrix.dtype, buffer=shm_dec.buf)
-        # Copy the data into shared memory
-        shared_array[:] = detectorMatrix[:]     
-
-
-        inputs=[(total_noise,total_meas,W,XerrorMatrix.dtype,shm_dec.name,parity_group, observable) for _ in range(self._shots)]
-        
-
-        pool = Pool(processes=os.cpu_count(), initializer=init_worker)
-
-        try:
-            # starmap is a blocking call that collects results from each process.
-            results = pool.starmap(sample_noise_and_calc_result, inputs)
-        except KeyboardInterrupt:
-            # Handle Ctrl-C gracefully.
-            print("KeyboardInterrupt received. Terminating pool...")
-            pool.terminate()
-            pool.join()
-            return  # or re-raise if you want to propagate the exception
-
-
-        # 'results' is a list of lists, e.g., [[1, 10, 100], [2, 20, 200], ...]
-        # You can concatenate them using a list comprehension or itertools.chain.
-        detections = np.array([result[0] for result in results])
-        observables = [result[1] for result in results]
-
-
-    
-        detector_error_model = self._circuit._stimcircuit.detector_error_model(decompose_errors=True)
-        matcher = pymatching.Matching.from_detector_error_model(detector_error_model)
-
-
-        predictions = matcher.decode_batch(detections)
-
-        flattened_predictions = [item for sublist in predictions for item in sublist]
-        flattened_observables = [item for sublist in observables for item in sublist]   
-
-        errorshots = sum(1 for a, b in zip(flattened_predictions, flattened_observables) if a != b)
-
-        self._logical_error_distribution[W]=errorshots/self._shots
-
-
-
     def calc_logical_error_rate(self):
 
 
@@ -489,10 +433,9 @@ class WSampler():
 
 
 
-
         inputs=[]
         for i in range(max_W-min_W+1):
-            inputs=inputs+[(total_noise,total_meas,i,XerrorMatrix.dtype,shm_dec.name,parity_group, observable) for _ in range(self._shots)]
+            inputs=inputs+[(self._shots,total_noise,total_meas,i,XerrorMatrix.dtype,shm_dec.name,parity_group, observable)]
         
         
         pool = Pool(processes=os.cpu_count(), initializer=init_worker)
@@ -510,9 +453,10 @@ class WSampler():
 
         # 'results' is a list of lists, e.g., [[1, 10, 100], [2, 20, 200], ...]
         # You can concatenate them using a list comprehension or itertools.chain.
-        detections = np.array([result[0] for result in results])
-        observables = [result[1] for result in results]
-
+        detections=np.array([item for result in results for item in result[0]])
+        #detections = np.array([result[0] for result in results])
+        #observables = [result[1] for result in results]
+        observables=np.array([item for result in results for item in result[1]])       
 
         detector_error_model = self._circuit._stimcircuit.detector_error_model(decompose_errors=True)
         matcher = pymatching.Matching.from_detector_error_model(detector_error_model)
