@@ -19,7 +19,7 @@ class QEPG:
         self._XerrorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype='uint8')
         self._YerrorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype='uint8')
         self._ZerrorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype='uint8')
-
+        #print("QEPG total noise:{} ".format(self._total_noise))
 
     def compute_graph(self):
         for i in range(self._total_noise):
@@ -56,8 +56,8 @@ class QEPG:
                     self.add_y_type_edge(3,i,j)
                 elif measured_error[j]=='Z':
                     self.add_z_type_edge(3,i,j)
-
-
+        #print("QEPG total noise after compute graph:{} ".format(self._total_noise))
+        #print(self._XerrorMatrix.shape)
 
     def add_x_type_edge(self, noise_type,a, b):
         if noise_type==1:
@@ -218,7 +218,7 @@ def python_sample_noise_and_calc_result(shots,totalnoise,total_meas,W,dtype,shm_
                 noise_vector[i+totalnoise]=1
             elif random_index[i]==3:
                 noise_vector[i+2*totalnoise]=1           
-
+        #print(dectectorMatrix.shape, noise_vector.shape)
         detectorresult=np.matmul(dectectorMatrix, noise_vector)%2
 
         tmp_detection_events=[]
@@ -264,6 +264,7 @@ class WSampler():
         self._circuit=circuit
         self._totalnoise=circuit.get_totalnoise()
 
+
         self._logical_error_distribution=[0]*self._totalnoise
         self._logical_error_rate=0
 
@@ -284,8 +285,8 @@ class WSampler():
 
         self._distance=distance
 
-        self._binomial_weights=[0]*self._totalnoise
-        self.calc_binomial_weight()
+        #self._binomial_weights=[0]*self._totalnoise
+        #self.calc_binomial_weight()
 
 
         self._maxvariance=1e-8
@@ -401,9 +402,10 @@ class WSampler():
 
 
         exp_noise=int(self._totalnoise*self._circuit._error_rate)
-        min_W=max(0,exp_noise-20)
-        max_W=min(self._totalnoise,exp_noise+20)
-
+        #min_W=max(0,exp_noise-20)
+        #max_W=min(self._totalnoise,exp_noise+20)
+        min_W=0
+        max_W=400
         '''
         for i in range(self._totalnoise):
             if(self._binomial_weights[i]>1e-12):
@@ -416,6 +418,14 @@ class WSampler():
             maxW=30
         '''
         #self._circuit.compile_from_stim_circuit_str(self._circuit._stim_str)
+        #self._circuit=CliffordCircuit(2)
+        self._circuit.set_error_rate(0.1)
+        self._circuit.compile_from_stim_circuit_str(self._circuit._stim_str)    
+        self._totalnoise=self._circuit.get_totalnoise()
+
+        #print(f"Total noise we get in main function: {self._totalnoise}")
+
+
         total_noise=self._totalnoise
         parity_group=self._circuit.get_parityMatchGroup()
         observable=self._circuit.get_observable()
@@ -426,6 +436,8 @@ class WSampler():
         YerrorMatrix=QEPGgraph._YerrorMatrix
         detectorMatrix=(XerrorMatrix+YerrorMatrix)%2
 
+        #print("The shape of detector matrix that we construct:")
+        #print(detectorMatrix.shape)
         stim_str=self._circuit._stim_str
 
 
@@ -434,7 +446,6 @@ class WSampler():
         shared_array = np.ndarray(detectorMatrix.shape, dtype=detectorMatrix.dtype, buffer=shm_dec.buf)
         # Copy the data into shared memory
         shared_array[:] = detectorMatrix[:]    
-
 
 
         inputs=[]
@@ -455,16 +466,15 @@ class WSampler():
             return  # or re-raise if you want to propagate the exception
 
 
+        #print(results)
+
+
         # 'results' is a list of lists, e.g., [[1, 10, 100], [2, 20, 200], ...]
         # You can concatenate them using a list comprehension or itertools.chain.
         detections=np.array([item for result in results for item in result[0]])
         #detections = np.array([result[0] for result in results])
         #observables = [result[1] for result in results]
         observables=np.array([item for result in results for item in result[1]])       
-
-        print("-------------detections shape------------------------------")
-        print(detections.shape)
-
 
 
 
@@ -493,15 +503,15 @@ class WSampler():
 
             self.calc_binomial_weight()
 
-            print(self._binomial_weights)
+            #print(self._binomial_weights)
             self._logical_error_rate=0
 
             for i in range(0,max_W-min_W+1):
                 tmp_flattened_predictions= flattened_predictions[i*self._shots:(i+1)*self._shots]
                 tmp_flattened_observables= flattened_observables[i*self._shots:(i+1)*self._shots]
                 errorshots = sum(1 for a, b in zip(tmp_flattened_predictions, tmp_flattened_observables) if a != b)
-                print("Error shots:")
-                print(errorshots)
+                #print("Error shots:")
+                #print(errorshots)
                 #print(len(self._logical_error_distribution))
                 #print(min_W+i)
                 self._logical_error_distribution[min_W+i]=errorshots/self._shots   

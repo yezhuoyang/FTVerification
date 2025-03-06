@@ -201,6 +201,11 @@ class CliffordCircuit:
     Compile from a stim circuit string.
     '''
     def compile_from_stim_circuit_str(self, stim_str):
+        #self._totalnoise=0
+        self._totalnoise=0
+        self._totalMeas=0
+        self._totalgates=0       
+
         lines = stim_str.splitlines()
         output_lines = []
         maxum_q_index=0

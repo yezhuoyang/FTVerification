@@ -97,6 +97,7 @@ def sample_fixed_one_two_three(N, k):
 # Assume sample_fixed_one_two_three is provided elsewhere; we'll call it as-is
 # If it’s Python, we’ll keep it, but ideally, it’d be Cythonized too.
 
+@cython.profile(True)
 @cython.boundscheck(False)  # Disable bounds checking for speed
 @cython.wraparound(False)   # Disable negative indexing for speed
 def sample_noise_and_calc_result(

@@ -102,20 +102,26 @@ class mySurface():
 
             circuit=CliffordCircuit(2)
             self._circuit=circuit
-            self._sampler=WSampler(self._circuit,distance=0)
-            self._sampler.set_shots(200)
-
+            circuit.set_error_rate(0.0001)  
             stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance*3,distance=distance).flattened()
-            #print(stim_circuit)
+
+
             stim_circuit=rewrite_stim_code(str(stim_circuit))
             self._circuit.set_stim_str(stim_circuit)
             self._circuit.compile_from_stim_circuit_str(stim_circuit)
+
+            self._sampler=WSampler(self._circuit,distance=0)
+            self._sampler.set_shots(200)
+            print("Start QPEG!")
             self._sampler.construct_QPEG()
             self._QPEG=self._sampler._QPEGraph
-            tmp_logical_error_list=self._sampler.calc_logical_error_rate_parallel(noise_list)
-            print(tmp_logical_error_list)
-            logical_list.append(tmp_logical_error_list)
 
+            print("Start sampling!")
+            tmp_logical_error_list=self._sampler.calc_logical_error_rate_parallel(noise_list)
+
+
+            logical_list.append(tmp_logical_error_list)
+            print(tmp_logical_error_list)
 
         # Now make the log–log plot and save to 'tmp.png'.
         plt.figure(figsize=(6,4))
