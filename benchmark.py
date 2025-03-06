@@ -111,7 +111,7 @@ class mySurface():
             self._circuit.compile_from_stim_circuit_str(stim_circuit)
 
             self._sampler=WSampler(self._circuit,distance=0)
-            self._sampler.set_shots(20)
+            self._sampler.set_shots(35)
             print("Start QPEG!")
             self._sampler.construct_QPEG()
             self._QPEG=self._sampler._QPEGraph
@@ -142,7 +142,7 @@ class mySurface():
         logical_list=[]
         #dvals=[3,5,7]
         #noise_list=[0.0005, 0.0010, 0.0015, 0.0020, 0.0025, 0.0030, 0.0035, 0.0040, 0.0045, 0.0050, 0.01, 0.015, 0.020, 0.025, 0.030]
-        dvals=[5]
+        dvals=[3]
         noise_list=[0.0005]
         for d in dvals:
             tmp_list=[]
@@ -229,6 +229,122 @@ def compare_shots():
 
 
 import time
+
+
+def sample_fixed_one_two_three(N, k):
+    """
+    Returns a list of length N containing exactly k non-zero entries 
+    (randomly chosen from {1,2,3}) and N-k zeros, in a random order.
+
+    The random draws use NumPy's random generator. To get reproducible results, 
+    call np.random.seed(...) before calling this function.
+    """
+    # Step 1: Create an array with k ones and (N-k) zeros
+    arr = np.array([1]*k + [0]*(N-k), dtype=int)
+    
+    # Step 2: Create a parallel array of random integers from {1, 2, 3} 
+    arrtype = np.random.randint(1, 4, size=N)
+    
+    # Step 3: Shuffle both arrays (independently)
+    np.random.shuffle(arr)
+    np.random.shuffle(arrtype)
+    
+    # Step 4: Multiply them elementwise. Zero positions remain 0;
+    # ones become a random integer from {1,2,3}.
+    return (arr * arrtype).tolist()
+
+
+#Sample noise with weight K
+def new_python_sample_noise_and_calc_result(shots,totalnoise,total_meas,W,dtype,shm_detec_name,parity_group, observable):
+    shm_detec = shared_memory.SharedMemory(name=shm_detec_name)
+    detectorMatrix = np.ndarray((total_meas,3*totalnoise), dtype=dtype, buffer=shm_detec.buf)  
+    paritymatrix=np.zeros((len(parity_group)+1,total_meas), dtype='uint8')
+    for i in range(len(parity_group)):
+        for j in parity_group[i]:
+            paritymatrix[i][j]=1
+    #print("observable: {}".format(observable))
+    for i in range(len(observable)):
+        paritymatrix[len(parity_group)][observable[i]]=1
+    detectorMatrix=np.matmul(paritymatrix,detectorMatrix)%2    
+    
+    result=[]
+    detection_events=[]
+    observable_flips=[]
+    for i in range(shots):
+        random_index=sample_fixed_one_two_three(totalnoise,W)
+        print("New random index: {}".format(random_index))
+        noise_vector=np.array([0]*3*totalnoise)
+        for i in range(totalnoise):
+            if random_index[i]==1:
+                noise_vector[i]=1
+            elif random_index[i]==2:
+                noise_vector[i+totalnoise]=1
+            elif random_index[i]==3:
+                noise_vector[i+2*totalnoise]=1           
+        #print(dectectorMatrix.shape, noise_vector.shape)
+        detectorresult=np.matmul(detectorMatrix, noise_vector)%2
+        print("New detector events: {}".format(list(detectorresult[:len(parity_group)])))
+        print("New observable flips: {}".format(list(detectorresult[len(parity_group):])))
+
+        print("New detectorMatrix: {}".format(detectorMatrix))
+        print(detectorMatrix)
+        result.append(detectorresult)
+        detection_events.append(list(detectorresult[:len(parity_group)]))
+        observable_flips.append(list(detectorresult[len(parity_group):]))
+    return detection_events,observable_flips
+
+
+#Sample noise with weight K
+def old_python_sample_noise_and_calc_result(shots,totalnoise,total_meas,W,dtype,shm_detec_name,parity_group, observable):
+    shm_detec = shared_memory.SharedMemory(name=shm_detec_name)
+    dectectorMatrix = np.ndarray((total_meas,3*totalnoise), dtype=dtype, buffer=shm_detec.buf)  
+    detection_events=[]
+    observable_flips=[]
+    for i in range(shots):
+        random_index=sample_fixed_one_two_three(totalnoise,W)
+        print("Old random index: {}".format(random_index))
+        noise_vector=np.array([0]*3*totalnoise)
+        for i in range(totalnoise):
+            if random_index[i]==1:
+                noise_vector[i]=1
+            elif random_index[i]==2:
+                noise_vector[i+totalnoise]=1
+            elif random_index[i]==3:
+                noise_vector[i+2*totalnoise]=1     
+      
+        #print(dectectorMatrix.shape, noise_vector.shape)
+        detectorresult=np.matmul(dectectorMatrix, noise_vector)%2
+
+        print("Old detector result: {}".format(detectorresult))
+
+        tmp_detection_events=[]
+        for group in parity_group:
+            parity=0
+            for i in group:
+                if detectorresult[i]==1:
+                    parity+=1
+            parity=parity%2
+            if parity==1:
+                tmp_detection_events.append(True)
+            else:
+                tmp_detection_events.append(False)
+                
+        tmp_observable_flips=[]
+        parity=0
+        for index in observable:
+            if detectorresult[index]==1:
+                parity+=1
+        parity=parity%2
+        if parity==1:
+            tmp_observable_flips.append(1)
+        else:
+            tmp_observable_flips.append(0)
+        detection_events.append(tmp_detection_events)
+        observable_flips.append(tmp_observable_flips)
+
+        print("Old detector events: {}".format(detection_events))
+        print("Old observable flips: {}".format(observable_flips))
+    return detection_events, observable_flips
 
 
 
@@ -358,6 +474,71 @@ def test_sample_noise_differences(shots=10, totalnoise=5, total_meas=4, W=2):
     shm.unlink()
 
 
+
+def test_equivalence():
+    # Fix a random seed so that both calls get identical random draws
+    SEED = 42
+
+    # Example parameters
+    shots         = 1
+    totalnoise    = 3
+    total_meas    = 6
+    W             = 2
+    dtype         = np.uint8
+    parity_group  = [[0, 1], [2], [3, 4, 5]]
+    observable    = [1, 2, 5]
+
+    # Create random detector matrix in shared memory
+    shape         = (total_meas, 3 * totalnoise)
+    shm_size      = int(np.prod(shape) * np.dtype(dtype).itemsize)  # cast to int explicitly
+    shm           = shared_memory.SharedMemory(create=True, size=shm_size)
+    matrix_array  = np.ndarray(shape, dtype=dtype, buffer=shm.buf)
+
+    # Fill with random 0/1 data
+    np.random.seed(999)  # arbitrary seed for the matrix
+    matrix_array[:] = np.random.randint(0, 2, size=shape)
+
+    # We'll use the name of the shared memory region in the function calls
+    shm_name = shm.name
+
+    #------------------ Call the NEW function ------------------#
+    np.random.seed(SEED)  # ensure the same random sequence
+    new_det_events, new_obs_flips = new_python_sample_noise_and_calc_result(
+        shots, totalnoise, total_meas, W, dtype, shm_name, parity_group, observable
+    )
+
+    #------------------ Call the OLD function ------------------#
+    np.random.seed(SEED)  # reset seed so it draws the same sequence
+    old_det_events, old_obs_flips = old_python_sample_noise_and_calc_result(
+        shots, totalnoise, total_meas, W, dtype, shm_name, parity_group, observable
+    )
+
+    # Compare results
+    for shot_idx in range(shots):
+        # new_det_events is list of 0/1, old_det_events is list of booleans
+        new_bits = new_det_events[shot_idx]
+        old_bits_bool = old_det_events[shot_idx]
+        # Convert booleans -> 0/1
+        old_bits = [1 if b else 0 for b in old_bits_bool]
+        if new_bits != old_bits:
+            raise ValueError(f"Mismatch in detection events at shot {shot_idx}:\n"
+                             f"  new={new_bits}\n  old={old_bits}")
+
+        # observable flips: both are lists of length 1, but new is 0/1, old is 0/1
+        new_obs = new_obs_flips[shot_idx]
+        old_obs = old_obs_flips[shot_idx]
+        if new_obs != old_obs:
+            raise ValueError(f"Mismatch in observable flips at shot {shot_idx}:\n"
+                             f"  new={new_obs}\n  old={old_obs}")
+
+    print("Success! Both functions produce identical results for the same random draws.")
+
+    # Cleanup
+    shm.close()
+    shm.unlink()
+
+
+
 if __name__ == "__main__":
 
 
@@ -365,20 +546,21 @@ if __name__ == "__main__":
     #profiler.enable()
 
 
-
+    '''
     time1=time.time()
     stim_surf=StimSurface()
     stim_surf.calc_threhold()
     time2=time.time()
     print(f"Stim running time: {time2-time1}")
+    '''
 
-
+    
     time1=time.time()
     surf=mySurface()
     surf.calc_threhold_parallel()
     time2=time.time()
     print(f"My running time: {time2-time1}")
-
+    
 
 
 
@@ -398,3 +580,5 @@ if __name__ == "__main__":
 
     #result=sample_fixed_one_two_three(10,6)
     #print(result)    
+
+    #test_equivalence()

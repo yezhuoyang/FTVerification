@@ -24,7 +24,7 @@ class QEPG:
 
     def compute_graph(self):
         for i in range(self._total_noise):
-            print("QEPG process      i:{}, total_noise:{}".format(i,self._total_noise))
+            #print("QEPG process      i:{}, total_noise:{}".format(i,self._total_noise))
             self._tracer.reset()
             self._tracer.set_noise_type(i,1)
             self._tracer.prop_all()
@@ -207,7 +207,8 @@ class NaiveSampler():
 #Sample noise with weight K
 def python_sample_noise_and_calc_result(shots,totalnoise,total_meas,W,dtype,shm_detec_name,parity_group, observable):
     shm_detec = shared_memory.SharedMemory(name=shm_detec_name)
-    dectectorMatrix = np.ndarray((total_meas,3*totalnoise), dtype=dtype, buffer=shm_detec.buf)  
+    detectorMatrix = np.ndarray((len(parity_group)+1,3*totalnoise), dtype=dtype, buffer=shm_detec.buf)  
+    result=[]
     detection_events=[]
     observable_flips=[]
     for i in range(shots):
@@ -221,33 +222,11 @@ def python_sample_noise_and_calc_result(shots,totalnoise,total_meas,W,dtype,shm_
             elif random_index[i]==3:
                 noise_vector[i+2*totalnoise]=1           
         #print(dectectorMatrix.shape, noise_vector.shape)
-        detectorresult=np.matmul(dectectorMatrix, noise_vector)%2
-
-        tmp_detection_events=[]
-        for group in parity_group:
-            parity=0
-            for i in group:
-                if detectorresult[i]==1:
-                    parity+=1
-            parity=parity%2
-            if parity==1:
-                tmp_detection_events.append(True)
-            else:
-                tmp_detection_events.append(False)
-                
-        tmp_observable_flips=[]
-        parity=0
-        for index in observable:
-            if detectorresult[index]==1:
-                parity+=1
-        parity=parity%2
-        if parity==1:
-            tmp_observable_flips.append(1)
-        else:
-            tmp_observable_flips.append(0)
-        detection_events.append(tmp_detection_events)
-        observable_flips.append(tmp_observable_flips)
-    return detection_events, observable_flips
+        detectorresult=np.matmul(detectorMatrix, noise_vector)%2
+        result.append(detectorresult)
+        detection_events.append(list(detectorresult[:len(parity_group)]))
+        observable_flips.append(list(detectorresult[len(parity_group):]))
+    return detection_events,observable_flips
 
 
 
@@ -407,7 +386,7 @@ class WSampler():
         #min_W=max(0,exp_noise-20)
         #max_W=min(self._totalnoise,exp_noise+20)
         min_W=0
-        max_W=200
+        max_W=100
         '''
         for i in range(self._totalnoise):
             if(self._binomial_weights[i]>1e-12):
@@ -438,6 +417,18 @@ class WSampler():
         YerrorMatrix=QEPGgraph._YerrorMatrix
         detectorMatrix=(XerrorMatrix+YerrorMatrix)%2
 
+        
+        paritymatrix=np.zeros((len(parity_group)+1,total_meas), dtype='uint8')
+        for i in range(len(parity_group)):
+            for j in parity_group[i]:
+                paritymatrix[i][j]=1
+        #print("observable: {}".format(observable))
+        for i in range(len(observable)):
+            paritymatrix[len(parity_group)][observable[i]]=1
+        detectorMatrix=np.matmul(paritymatrix,detectorMatrix)
+        
+
+
         #print("The shape of detector matrix that we construct:")
         #print(detectorMatrix.shape)
         stim_str=self._circuit._stim_str
@@ -459,7 +450,7 @@ class WSampler():
 
         try:
             # starmap is a blocking call that collects results from each process.
-            results = pool.starmap(sample_noise_and_calc_result, inputs)
+            results = pool.starmap(python_sample_noise_and_calc_result, inputs)
         except KeyboardInterrupt:
             # Handle Ctrl-C gracefully.
             print("KeyboardInterrupt received. Terminating pool...")
@@ -468,16 +459,14 @@ class WSampler():
             return  # or re-raise if you want to propagate the exception
 
 
-        #print(results)
 
-
+  
         # 'results' is a list of lists, e.g., [[1, 10, 100], [2, 20, 200], ...]
         # You can concatenate them using a list comprehension or itertools.chain.
         detections=np.array([item for result in results for item in result[0]])
         #detections = np.array([result[0] for result in results])
         #observables = [result[1] for result in results]
         observables=np.array([item for result in results for item in result[1]])       
-
 
 
         result_list=[]
