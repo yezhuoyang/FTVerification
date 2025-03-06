@@ -7,6 +7,7 @@ from noise_sampler import sample_noise_and_calc_result, cython_sample_noise_and_
 
 '''
 Class of quantum error propagation graph
+TODO: Optimize the algorithm to construct the QEPG
 '''
 class QEPG:
 
@@ -23,6 +24,7 @@ class QEPG:
 
     def compute_graph(self):
         for i in range(self._total_noise):
+            print("QEPG process      i:{}, total_noise:{}".format(i,self._total_noise))
             self._tracer.reset()
             self._tracer.set_noise_type(i,1)
             self._tracer.prop_all()
@@ -405,7 +407,7 @@ class WSampler():
         #min_W=max(0,exp_noise-20)
         #max_W=min(self._totalnoise,exp_noise+20)
         min_W=0
-        max_W=400
+        max_W=200
         '''
         for i in range(self._totalnoise):
             if(self._binomial_weights[i]>1e-12):

@@ -101,6 +101,14 @@ def rewrite_stim_code(code: str) -> str:
             stripped_line.startswith("OBSERVABLE_INCLUDE(")):
             output_lines.append(stripped_line)
             continue
+        
+        if (stripped_line.startswith("X_ERROR") or
+            stripped_line.startswith("DEPOLARIZE1") or
+            stripped_line.startswith("DEPOLARIZE2") or
+            stripped_line.startswith("SHIFT_COORDS")            
+            ):
+            continue
+            
 
         tokens = stripped_line.split()
         gate = tokens[0]
