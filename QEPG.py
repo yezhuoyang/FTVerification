@@ -271,9 +271,9 @@ class NaiveSampler():
     
 
 #Sample noise with weight K
-def python_sample_noise_and_calc_result(shots,totalnoise,total_meas,W,dtype,shm_detec_name,parity_group, observable):
+def python_sample_noise_and_calc_result(shots,totalnoise,W,dtype,shm_detec_name,parity_group_length):
     shm_detec = shared_memory.SharedMemory(name=shm_detec_name)
-    detectorMatrix = np.ndarray((len(parity_group)+1,3*totalnoise), dtype=dtype, buffer=shm_detec.buf)  
+    detectorMatrix = np.ndarray((parity_group_length+1,3*totalnoise), dtype=dtype, buffer=shm_detec.buf)  
     result=[]
     detection_events=[]
     observable_flips=[]
@@ -290,8 +290,8 @@ def python_sample_noise_and_calc_result(shots,totalnoise,total_meas,W,dtype,shm_
         #print(dectectorMatrix.shape, noise_vector.shape)
         detectorresult=np.matmul(detectorMatrix, noise_vector)%2
         result.append(detectorresult)
-        detection_events.append(list(detectorresult[:len(parity_group)]))
-        observable_flips.append(list(detectorresult[len(parity_group):]))
+        detection_events.append(list(detectorresult[:parity_group_length]))
+        observable_flips.append(list(detectorresult[parity_group_length:]))
     return detection_events,observable_flips
 
 
@@ -509,16 +509,15 @@ class WSampler():
         shared_array[:] = detectorMatrix[:]    
 
 
+        parity_group_length=len(parity_group)
         inputs=[]
         for i in range(max_W-min_W+1):
-            inputs=inputs+[(self._shots,total_noise,total_meas,i,detectorMatrix.dtype.name,shm_dec.name,parity_group, observable)]
-        
+            inputs=inputs+[(self._shots,total_noise,i,detectorMatrix.dtype.name,shm_dec.name, parity_group_length)]
         
         pool = Pool(processes=os.cpu_count(), initializer=init_worker)
-
         try:
             # starmap is a blocking call that collects results from each process.
-            results = pool.starmap(python_sample_noise_and_calc_result, inputs)
+            results = pool.starmap(cython_sample_noise_and_calc_result, inputs)
         except KeyboardInterrupt:
             # Handle Ctrl-C gracefully.
             print("KeyboardInterrupt received. Terminating pool...")
@@ -624,10 +623,9 @@ class WSampler():
         shared_array[:] = detectorMatrix[:]    
 
 
-
         inputs=[]
         for i in range(max_W-min_W+1):
-            inputs=inputs+[(self._shots,total_noise,total_meas,i,XerrorMatrix.dtype.name,shm_dec.name,parity_group, observable)]
+            inputs=inputs+[(self._shots,total_noise,i,XerrorMatrix.dtype.name,shm_dec.name,parity_group)]
         
         
         pool = Pool(processes=os.cpu_count(), initializer=init_worker)
