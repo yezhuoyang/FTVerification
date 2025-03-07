@@ -20,11 +20,77 @@ class QEPG:
         self._XerrorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype='uint8')
         self._YerrorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype='uint8')
         self._ZerrorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype='uint8')
+
+
+        
         #print("QEPG total noise:{} ".format(self._total_noise))
+
+
+    def backword_graph_construction(self):
+        nqubit=self._circuit._qubit_num
+        #Keep track of the effect of X,Y,Z back propagation
+        current_x_prop=np.zeros((nqubit,self._total_meas), dtype='uint8')
+        current_y_prop=np.zeros((nqubit,self._total_meas), dtype='uint8')
+        current_z_prop=np.zeros((nqubit,self._total_meas), dtype='uint8')
+        current_noise_index=self._circuit._totalnoise-1
+        current_meas_index=self._total_meas-1  
+        self._detectorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype='uint8') 
+        T=len(self._circuit._gatelists)
+        for t in range(T-1,-1,-1):
+            #Update current_x_prop, current_y_prop, current_z_prop based on the current gate and measurement
+            gate=self._circuit._gatelists[t]
+            '''
+            If the gate is a oiginal noise, add edges to the graph based on current propogation
+            '''
+            if isinstance(gate, pauliNoise):
+                noiseindex=current_noise_index # TODO: Determine the index of the noise
+                #print("Noise!")
+                for j in range(self._total_meas):
+                    self._detectorMatrix[j][3*noiseindex]=current_x_prop[gate._qubitindex][j]
+                    self._detectorMatrix[j][3*noiseindex+1]=current_y_prop[gate._qubitindex][j] 
+                    self._detectorMatrix[j][3*noiseindex+2]=current_z_prop[gate._qubitindex][j]  
+                current_noise_index-=1
+                continue
+            '''
+            When there is a measurement, update the current propogation based on the measurement
+            We just need to consider the propagation of X and Y because only 
+            the X and Y error can be detected by the measurement
+            '''
+            if isinstance(gate, Measurement):
+                measureindex=current_meas_index # TODO: Determine the index of the noise
+                current_x_prop[gate._qubitindex][measureindex]=1
+                current_y_prop[gate._qubitindex][measureindex]=1
+                current_meas_index-=1
+                continue
+
+            '''
+            Deal with propagation by CNOT gate, we need to consider the propagation of X and Z
+            '''
+            if gate._name=="CNOT":
+                control=gate._control
+                target=gate._target
+                current_x_prop[control,:]=(current_x_prop[control,:]+current_x_prop[target,:])%2
+                current_z_prop[target,:]=(current_z_prop[control,:]+current_z_prop[target,:])%2                
+                current_y_prop[control,:]=(current_y_prop[control,:]+current_x_prop[target,:])%2
+                current_y_prop[target,:]=(current_y_prop[target,:]+current_z_prop[control,:])%2
+                continue
+            
+            '''
+            Deal with propagation by H gate
+            If there is a H gate, we need to swap the X and Z propagations
+            '''
+            if gate._name=="H":
+                qubitindex=gate._qubitindex
+                tmp_row=current_x_prop[qubitindex,:].copy()
+                current_x_prop[qubitindex,:]=current_z_prop[qubitindex,:]
+                current_z_prop[qubitindex,:]=tmp_row               
+                continue
+
+
+
 
     def compute_graph(self):
         for i in range(self._total_noise):
-            #print("QEPG process      i:{}, total_noise:{}".format(i,self._total_noise))
             self._tracer.reset()
             self._tracer.set_noise_type(i,1)
             self._tracer.prop_all()
@@ -278,7 +344,8 @@ class WSampler():
 
     def construct_QPEG(self):
         self._QPEGraph=QEPG(self._circuit)
-        self._QPEGraph.compute_graph()
+        #self._QPEGraph.compute_graph()
+        self._QPEGraph.backword_graph_construction()    
 
 
     def set_shots(self, shots):
@@ -386,7 +453,7 @@ class WSampler():
         #min_W=max(0,exp_noise-20)
         #max_W=min(self._totalnoise,exp_noise+20)
         min_W=0
-        max_W=100
+        max_W=150
         '''
         for i in range(self._totalnoise):
             if(self._binomial_weights[i]>1e-12):
@@ -413,9 +480,10 @@ class WSampler():
         QEPGgraph=self._QPEGraph
         total_meas=self._circuit._totalMeas
 
-        XerrorMatrix=QEPGgraph._XerrorMatrix
-        YerrorMatrix=QEPGgraph._YerrorMatrix
-        detectorMatrix=(XerrorMatrix+YerrorMatrix)%2
+        #XerrorMatrix=QEPGgraph._XerrorMatrix
+        #YerrorMatrix=QEPGgraph._YerrorMatrix
+        #detectorMatrix=(XerrorMatrix+YerrorMatrix)%2
+        detectorMatrix=QEPGgraph._detectorMatrix
 
         
         paritymatrix=np.zeros((len(parity_group)+1,total_meas), dtype='uint8')
@@ -443,7 +511,7 @@ class WSampler():
 
         inputs=[]
         for i in range(max_W-min_W+1):
-            inputs=inputs+[(self._shots,total_noise,total_meas,i,XerrorMatrix.dtype.name,shm_dec.name,parity_group, observable)]
+            inputs=inputs+[(self._shots,total_noise,total_meas,i,detectorMatrix.dtype.name,shm_dec.name,parity_group, observable)]
         
         
         pool = Pool(processes=os.cpu_count(), initializer=init_worker)

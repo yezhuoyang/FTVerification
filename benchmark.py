@@ -89,7 +89,7 @@ class mySurface():
         self._sampler=WSampler(self._circuit,distance=distance)
 
        
-        self._sampler.set_shots(200)
+        self._sampler.set_shots(20)
         self._sampler.construct_detector_model()
 
 
@@ -111,7 +111,7 @@ class mySurface():
             self._circuit.compile_from_stim_circuit_str(stim_circuit)
 
             self._sampler=WSampler(self._circuit,distance=0)
-            self._sampler.set_shots(35)
+            self._sampler.set_shots(30)
             print("Start QPEG!")
             self._sampler.construct_QPEG()
             self._QPEG=self._sampler._QPEGraph
@@ -564,6 +564,7 @@ if __name__ == "__main__":
 
 
 
+
     #profiler.disable()
     #stats = pstats.Stats(profiler)
     #stats.sort_stats('cumtime')  # Sort by cumulative time
@@ -582,3 +583,24 @@ if __name__ == "__main__":
     #print(result)    
 
     #test_equivalence()
+
+    '''
+    stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=3*3,distance=3).flattened()
+    stim_str=rewrite_stim_code(str(stim_circuit))
+    circuit=CliffordCircuit(2)
+    circuit.set_error_rate(0.1)
+    circuit.set_stim_str(stim_str)
+    circuit.compile_from_stim_circuit_str(stim_str)
+
+
+    sampler=WSampler(circuit,distance=7)
+
+    QPEGraph=QEPG(circuit)
+
+
+    #time1=time.time()
+    QPEGraph.backword_graph_construction()'
+    '''
+    #time2=time.time()
+    #print(f"QEPG running time: {time2-time1}")'
+    
