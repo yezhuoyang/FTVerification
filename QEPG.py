@@ -3,7 +3,7 @@ from multiprocessing import Process, Pool
 import os
 import signal
 from multiprocessing import shared_memory
-from noise_sampler import sample_noise_and_calc_result, cython_sample_noise_and_calc_result, sample_fixed_one_two_three
+from noise_sampler import cython_sample_noise_and_calc_result, sample_fixed_one_two_three
 
 '''
 Class of quantum error propagation graph
@@ -281,8 +281,9 @@ class NaiveSampler():
                 num_errors += 1
         
         self._logical_error_rate=num_errors/self._shots
+        variance=self._logical_error_rate*(1-self._logical_error_rate)/self._shots
 
-        return self._logical_error_rate
+        return self._logical_error_rate,variance
 
 
     
@@ -328,6 +329,9 @@ class WSampler():
         self._circuit=circuit
         self._totalnoise=circuit.get_totalnoise()
 
+
+        self._sample_nums=[0]*self._totalnoise
+        self._sample_sums=[0]*self._totalnoise
 
         self._logical_error_distribution=[0]*self._totalnoise
         self._logical_error_rate=0
@@ -497,18 +501,8 @@ class WSampler():
         QEPGgraph=self._QPEGraph
         total_meas=self._circuit._totalMeas
 
-        XerrorMatrix=QEPGgraph._XerrorMatrix
-        YerrorMatrix=QEPGgraph._YerrorMatrix
+
         detectorMatrix=QEPGgraph._detectorMatrix
-        
-        #print(detectorMatrix)
-
-        #QEPGgraph.backword_graph_construction()
-        #detectorMatrix2=QEPGgraph._detectorMatrix
-        #print(detectorMatrix2)
-        #assert((detectorMatrix==detectorMatrix2).all())
-
-        
         paritymatrix=np.zeros((len(parity_group)+1,total_meas), dtype='uint8')
         for i in range(len(parity_group)):
             for j in parity_group[i]:
@@ -608,13 +602,33 @@ class WSampler():
 
 
 
+    def calc_sample_sum(self,min_W,max_W):
+        self._sample_sums[0]=self._sample_nums[0]
+        for i in range(1,max_W-min_W+1):
+            self._sample_sums[i]=self._sample_sums[i-1]+self._sample_nums[i]
+
+
+    def calc_sample_num(self,sampleBudget,min_W,max_W):
+        for i in range(min_W,max_W+1):
+            self._sample_nums[i]=int(sampleBudget*self._binomial_weights[i])
+
+
 
     def calc_logical_error_rate(self):
 
 
         exp_noise=int(self._totalnoise*self._circuit._error_rate)
-        min_W=max(0,exp_noise-50)
-        max_W=min(self._totalnoise,exp_noise+50)
+
+        wrange=10
+        min_W=max(0,exp_noise-wrange)
+        max_W=min(self._totalnoise,exp_noise+wrange)
+        self._binomial_weights=[0]*self._totalnoise
+        self.calc_binomial_weight()
+        self.calc_sample_num(self._shots,min_W,max_W)
+        self.calc_sample_sum(min_W,max_W)
+
+        #print(self._sample_nums)
+        #print(self._sample_sums)
 
         '''
         for i in range(self._totalnoise):
@@ -634,10 +648,18 @@ class WSampler():
         QEPGgraph=self._QPEGraph
         total_meas=self._circuit._totalMeas
 
-        XerrorMatrix=QEPGgraph._XerrorMatrix
-        YerrorMatrix=QEPGgraph._YerrorMatrix
-        detectorMatrix=(XerrorMatrix+YerrorMatrix)%2
+        detectorMatrix=QEPGgraph._detectorMatrix
+        paritymatrix=np.zeros((len(parity_group)+1,total_meas), dtype='uint8')
 
+        #print(len(parity_group))
+        for i in range(len(parity_group)):
+            for j in parity_group[i]:
+                paritymatrix[i][j]=1
+        #print("observable: {}".format(observable))
+        for i in range(len(observable)):
+            paritymatrix[len(parity_group)][observable[i]]=1
+        detectorMatrix=np.matmul(paritymatrix,detectorMatrix)
+        
 
         shm_dec = shared_memory.SharedMemory(create=True, size=detectorMatrix.nbytes)
         # Create a NumPy array backed by the shared memory
@@ -646,22 +668,29 @@ class WSampler():
         shared_array[:] = detectorMatrix[:]    
 
 
+
+        parity_group_length=len(parity_group)
         inputs=[]
         for i in range(max_W-min_W+1):
-            inputs=inputs+[(self._shots,total_noise,i,XerrorMatrix.dtype.name,shm_dec.name,parity_group)]
-        
+            inputs=inputs+[(self._sample_nums[i],total_noise,i,detectorMatrix.dtype.name,shm_dec.name, parity_group_length)]
+
         
         pool = Pool(processes=os.cpu_count(), initializer=init_worker)
 
         try:
             # starmap is a blocking call that collects results from each process.
-            results = pool.starmap(sample_noise_and_calc_result, inputs)
+            results = pool.starmap(python_sample_noise_and_calc_result, inputs)
         except KeyboardInterrupt:
             # Handle Ctrl-C gracefully.
             print("KeyboardInterrupt received. Terminating pool...")
             pool.terminate()
             pool.join()
             return  # or re-raise if you want to propagate the exception
+
+        self._logical_error_distribution=[0]*self._totalnoise
+
+        self._logical_error_rate=0
+
 
 
         # 'results' is a list of lists, e.g., [[1, 10, 100], [2, 20, 200], ...]
@@ -680,22 +709,30 @@ class WSampler():
         flattened_predictions = [item for sublist in predictions for item in sublist]
         flattened_observables = [item for sublist in observables for item in sublist]   
 
-
-
-        for i in range(0,max_W-min_W+1):
-            tmp_flattened_predictions= flattened_predictions[i*self._shots:(i+1)*self._shots]
-            tmp_flattened_observables= flattened_observables[i*self._shots:(i+1)*self._shots]
+        if self._sample_nums[min_W]>0:
+            tmp_flattened_predictions= flattened_predictions[0:self._sample_sums[0]]
+            tmp_flattened_observables= flattened_observables[0:self._sample_sums[0]]
             errorshots = sum(1 for a, b in zip(tmp_flattened_predictions, tmp_flattened_observables) if a != b)
-            self._logical_error_distribution[min_W+i]=errorshots/self._shots   
-            self._logical_error_rate+=self._binomial_weights[min_W+i]*self._logical_error_distribution[min_W+i]
+            self._logical_error_distribution[min_W]=errorshots/self._sample_nums[min_W]
+            self._logical_error_rate+=self._binomial_weights[min_W]*self._logical_error_distribution[min_W]
 
-             
+
+        for i in range(1,max_W-min_W+1):
+            if self._sample_nums[min_W+i]>0: 
+                tmp_flattened_predictions= flattened_predictions[self._sample_sums[i-1]:self._sample_sums[i]]
+                tmp_flattened_observables= flattened_observables[self._sample_sums[i-1]:self._sample_sums[i]]
+                errorshots = sum(1 for a, b in zip(tmp_flattened_predictions, tmp_flattened_observables) if a != b)
+                self._logical_error_distribution[min_W+i]=errorshots/self._sample_nums[min_W+i] 
+                self._logical_error_rate+=self._binomial_weights[min_W+i]*self._logical_error_distribution[min_W+i]
+
+
+        variance=self._logical_error_rate*(1-self._logical_error_rate)/self._shots
         
         #print(f"------------Error distribution--------Total Number error: {self._totalnoise}-------------")
         #print(self._logical_error_distribution)
         #print("------------Binomial weights---------------------")
         #print(self._binomial_weights)
-        return self._logical_error_rate
+        return self._logical_error_rate,variance
 
 
 
