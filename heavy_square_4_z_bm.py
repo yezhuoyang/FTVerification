@@ -648,10 +648,13 @@ if __name__ == '__main__':
     import matplotlib.pylab as plt
 
 
-    '''
+    
     rounds = 1
-    distance = 3
+    distance = 2
     circ = heavy_square_4_circ(0.005,rounds, distance)
+
+    #print(circ)
+
 
     circ=stim.Circuit(circ).flattened()
     newcode=rewrite_stim_code(str(circ))
@@ -664,7 +667,7 @@ if __name__ == '__main__':
 
 
     print(newcircuit)
-    '''
+    
 
 
     #print(circ)
@@ -672,6 +675,7 @@ if __name__ == '__main__':
     
     
 
+    '''
     mycode=myCode()
     mycode.calc_threhold_parallel()
 
@@ -711,6 +715,7 @@ if __name__ == '__main__':
         plt.legend()
         plt.savefig(bname+"-run-%d-shots-%d222.pdf" % (run, num_shots))
         np.savez(bname+"-run-%d-shots-%d" % (run, num_shots), xss=xss, yss=yss)
+    '''
     
 
 

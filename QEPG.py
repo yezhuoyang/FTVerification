@@ -34,6 +34,7 @@ class QEPG:
         current_z_prop=np.zeros((nqubit,self._total_meas), dtype='uint8')
         current_noise_index=self._circuit._totalnoise-1
         current_meas_index=self._total_meas-1  
+        total_noise=self._total_noise
         self._detectorMatrix=np.zeros((self._total_meas,3*self._total_noise), dtype='uint8') 
         T=len(self._circuit._gatelists)
         for t in range(T-1,-1,-1):
@@ -46,9 +47,9 @@ class QEPG:
                 noiseindex=current_noise_index # TODO: Determine the index of the noise
                 #print("Noise!")
                 for j in range(self._total_meas):
-                    self._detectorMatrix[j][3*noiseindex]=current_x_prop[gate._qubitindex][j]
-                    self._detectorMatrix[j][3*noiseindex+1]=current_y_prop[gate._qubitindex][j] 
-                    self._detectorMatrix[j][3*noiseindex+2]=current_z_prop[gate._qubitindex][j]  
+                    self._detectorMatrix[j][noiseindex]=current_x_prop[gate._qubitindex][j]
+                    self._detectorMatrix[j][total_noise+noiseindex]=current_y_prop[gate._qubitindex][j] 
+                    self._detectorMatrix[j][total_noise*2+noiseindex]=current_z_prop[gate._qubitindex][j]  
                 current_noise_index-=1
                 continue
             '''
@@ -61,6 +62,13 @@ class QEPG:
                 current_x_prop[gate._qubitindex][measureindex]=1
                 current_y_prop[gate._qubitindex][measureindex]=1
                 current_meas_index-=1
+                continue
+
+            if isinstance(gate,Reset):
+                for j in range(self._total_meas): 
+                    current_x_prop[gate._qubitindex][j]=0
+                    current_y_prop[gate._qubitindex][j]=0
+                    current_z_prop[gate._qubitindex][j]=0
                 continue
 
             '''
@@ -91,34 +99,43 @@ class QEPG:
 
     def compute_graph(self):
         for i in range(self._total_noise):
+            #print(f"Calc noise {i}, set it X error")
             self._tracer.reset()
             self._tracer.set_noise_type(i,1)
             self._tracer.prop_all()
             measured_error=self._tracer.get_measuredError()
+            #print(f"Measured error: {measured_error}")
             for j in range(self._total_meas):
                 if measured_error[j]=='X':
+                    #print(f"Add x type edge: {1},{i},{j}")
                     self.add_x_type_edge(1,i,j)
                 elif measured_error[j]=='Y':
                     self.add_y_type_edge(1,i,j)
                 elif measured_error[j]=='Z':
                     self.add_z_type_edge(1,i,j)
             self._tracer.reset()    
+            #print(f"Calc noise {i}, set it Y error")
             self._tracer.set_noise_type(i,2)
             self._tracer.prop_all()
             measured_error=self._tracer.get_measuredError()
+            #print(f"Measured error: {measured_error}")
             for j in range(self._total_meas):
                 if measured_error[j]=='X':
+                    #print(f"Add x type edge: {2},{i},{j}")
                     self.add_x_type_edge(2,i,j)
                 elif measured_error[j]=='Y':
                     self.add_y_type_edge(2,i,j)
                 elif measured_error[j]=='Z':
                     self.add_z_type_edge(2,i,j)
             self._tracer.reset()    
+            #print(f"Calc noise {i}, set it Z error")
             self._tracer.set_noise_type(i,3)
             self._tracer.prop_all()
             measured_error=self._tracer.get_measuredError()
+            #print(f"Measured error: {measured_error}")
             for j in range(self._total_meas):
                 if measured_error[j]=='X':
+                    #print(f"Add x type edge: {3},{i},{j}")
                     self.add_x_type_edge(3,i,j)
                 elif measured_error[j]=='Y':
                     self.add_y_type_edge(3,i,j)
@@ -480,10 +497,16 @@ class WSampler():
         QEPGgraph=self._QPEGraph
         total_meas=self._circuit._totalMeas
 
-        #XerrorMatrix=QEPGgraph._XerrorMatrix
-        #YerrorMatrix=QEPGgraph._YerrorMatrix
-        #detectorMatrix=(XerrorMatrix+YerrorMatrix)%2
+        XerrorMatrix=QEPGgraph._XerrorMatrix
+        YerrorMatrix=QEPGgraph._YerrorMatrix
         detectorMatrix=QEPGgraph._detectorMatrix
+        
+        #print(detectorMatrix)
+
+        #QEPGgraph.backword_graph_construction()
+        #detectorMatrix2=QEPGgraph._detectorMatrix
+        #print(detectorMatrix2)
+        #assert((detectorMatrix==detectorMatrix2).all())
 
         
         paritymatrix=np.zeros((len(parity_group)+1,total_meas), dtype='uint8')
@@ -517,7 +540,7 @@ class WSampler():
         pool = Pool(processes=os.cpu_count(), initializer=init_worker)
         try:
             # starmap is a blocking call that collects results from each process.
-            results = pool.starmap(cython_sample_noise_and_calc_result, inputs)
+            results = pool.starmap(python_sample_noise_and_calc_result, inputs)
         except KeyboardInterrupt:
             # Handle Ctrl-C gracefully.
             print("KeyboardInterrupt received. Terminating pool...")
@@ -590,8 +613,8 @@ class WSampler():
 
 
         exp_noise=int(self._totalnoise*self._circuit._error_rate)
-        min_W=max(0,exp_noise-20)
-        max_W=min(self._totalnoise,exp_noise+20)
+        min_W=max(0,exp_noise-50)
+        max_W=min(self._totalnoise,exp_noise+50)
 
         '''
         for i in range(self._totalnoise):
@@ -683,6 +706,7 @@ def test_QEPG():
 
     circuit.add_measurement(0)
     circuit.add_measurement(1)
+    
     
     graph=QEPG(circuit)
     graph.compute_graph()

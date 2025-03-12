@@ -111,7 +111,7 @@ class mySurface():
             self._circuit.compile_from_stim_circuit_str(stim_circuit)
 
             self._sampler=WSampler(self._circuit,distance=0)
-            self._sampler.set_shots(30)
+            self._sampler.set_shots(50)
             print("Start QPEG!")
             self._sampler.construct_QPEG()
             self._QPEG=self._sampler._QPEGraph
@@ -546,13 +546,13 @@ if __name__ == "__main__":
     #profiler.enable()
 
 
-    '''
+    
     time1=time.time()
     stim_surf=StimSurface()
     stim_surf.calc_threhold()
     time2=time.time()
     print(f"Stim running time: {time2-time1}")
-    '''
+    
 
     
     time1=time.time()
