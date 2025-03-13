@@ -52,8 +52,8 @@ import matplotlib.pyplot as plt
 def compare_two_method():
     distance=3
     circuit=CliffordCircuit(2)
-    circuit.set_error_rate(0.0001)
-    stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance*3,distance=distance).flattened()
+    circuit.set_error_rate(0.0005)
+    stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance,distance=distance).flattened()
     stim_circuit=rewrite_stim_code(str(stim_circuit))
     circuit.set_stim_str(stim_circuit)
     circuit.compile_from_stim_circuit_str(stim_circuit) 
@@ -65,7 +65,7 @@ def compare_two_method():
     sampler.construct_QPEG()
 
 
-    shot_list=[1000,2000,3000,4000,5000,8000]
+    shot_list=[1000,2000,3000,4000,5000,8000,10000]
     error_rate_list1=[]
     var_list1=[]
     error_rate_list2=[]
