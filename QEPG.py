@@ -613,7 +613,7 @@ class WSampler():
             self._sample_nums[i]=int(sampleBudget*self._binomial_weights[i])
 
 
-    def calc_logical_error_distribution(self):
+    def calc_logical_error_distribution(self,wmin=None,wmax=None):
 
         shots=self._shots
         total_noise=self._totalnoise
@@ -643,8 +643,12 @@ class WSampler():
 
 
         parity_group_length=len(parity_group)
+        if wmin is None and wmax is None:
+            wmin=0
+            wmax=total_noise
+            
         inputs=[]
-        for i in range(total_noise):
+        for i in range(wmin,wmax+1):
             inputs=inputs+[(shots,total_noise,i,detectorMatrix.dtype.name,shm_dec.name, parity_group_length)]
 
         
@@ -683,11 +687,11 @@ class WSampler():
         flattened_observables = [item for sublist in observables for item in sublist]   
 
 
-        for i in range(total_noise):
+        for i in range(0,wmax-wmin+1):
             tmp_flattened_predictions= flattened_predictions[i*self._shots:(i+1)*self._shots]
             tmp_flattened_observables= flattened_observables[i*self._shots:(i+1)*self._shots]
             errorshots = sum(1 for a, b in zip(tmp_flattened_predictions, tmp_flattened_observables) if a != b)
-            self._logical_error_distribution[i]=errorshots/self._shots
+            self._logical_error_distribution[wmin+i]=errorshots/self._shots
             #self._logical_error_rate+=self._binomial_weights[i]*self._logical_error_distribution[i]
 
         return self._logical_error_distribution
