@@ -4,6 +4,8 @@ import os
 import signal
 from multiprocessing import shared_memory
 from noise_sampler import cython_sample_noise_and_calc_result, sample_fixed_one_two_three
+from scipy.optimize import curve_fit
+
 
 '''
 Class of quantum error propagation graph
@@ -314,11 +316,17 @@ def python_sample_noise_and_calc_result(shots,totalnoise,W,dtype,shm_detec_name,
 
 
 
-
+from scipy.stats import norm
 
 def init_worker():
     # Ignore SIGINT in worker processes so that only the main process catches it.
     signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+def model_function(x, alpha):
+    mu, sigma = 10, 1
+    cdf_values = 0.5*norm.cdf(x, loc=mu, scale=alpha)
+    return cdf_values
 
 
 class WSampler():
@@ -611,6 +619,41 @@ class WSampler():
     def calc_sample_num(self,sampleBudget,min_W,max_W):
         for i in range(min_W,max_W+1):
             self._sample_nums[i]=int(sampleBudget*self._binomial_weights[i])
+
+    '''
+    Fit the distribution by 1/2-e^{alpha/W}
+    '''
+    def fit_curve(self,wlist):
+        # Initial guess for alpha
+        initial_guess = [1.0]
+
+        # Set bounds: alpha > 0 means the lower bound for alpha is 0
+        # You can also set an upper bound if you want, e.g. np.inf for no upper limit
+        bounds = (0, np.inf)
+
+        # Perform the curve fit with the bounds
+        popt, pcov = curve_fit(
+            model_function, 
+            wlist, 
+            [self._logical_error_distribution[x] for x in wlist], 
+            p0=initial_guess, 
+            bounds=bounds
+        )
+
+        # Extract the best-fit parameter (alpha)
+        alpha_fit = popt[0]
+        print(f"Fitted alpha: {alpha_fit}")
+        return alpha_fit
+
+
+    def calc_logical_error_rate_by_curve_fitting(self,alpha):
+        self._logical_error_rate=0
+        self._binomial_weights=[0]*self._totalnoise
+        self.calc_binomial_weight()
+        for i in range(1,self._totalnoise):
+            self._logical_error_rate+=model_function(i,alpha)*self._binomial_weights[i]
+        return self._logical_error_rate
+
 
 
     def calc_logical_error_distribution(self,wlist=None):

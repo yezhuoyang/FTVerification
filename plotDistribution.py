@@ -87,6 +87,56 @@ def compare_error_rate():
     
 
 
+def fit_curve():
+    distance=3
+    circuit=CliffordCircuit(3)
+    circuit.set_error_rate(0.01)
+    stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance*3,distance=distance).flattened()
+    stim_circuit=rewrite_stim_code(str(stim_circuit))
+    circuit.set_stim_str(stim_circuit)
+    circuit.compile_from_stim_circuit_str(stim_circuit) 
+
+
+    sampler=WSampler(circuit)
+
+
+    sampler.construct_QPEG()
+
+
+    shot=10000
+
+    sampler.set_shots(shot)
+
+    wlist=[1, 4,5,7, 12,13,20,24, 25, 50, 70, 90,100]
+    distribution=sampler.calc_logical_error_distribution(wlist=wlist)
+
+    
+    alpha=sampler.fit_curve(wlist)
+
+    logical_error_rate=sampler.calc_logical_error_rate_by_curve_fitting(alpha)
+
+    print("Logical error rate: ",logical_error_rate)
+
+
+
+    xlist=np.linspace(1, 100, 1000)
+    ylist=[model_function(x, alpha) for x in xlist]
+
+
+    # Plot the fitted curve
+    plt.plot(wlist, [distribution[x] for x in wlist], marker='o', label='Fitted Curve')
+    plt.plot(xlist, ylist, label='Fitted Function')
+    plt.xlabel('Number of Errors')
+    plt.ylabel('Logical Error Rate')
+    plt.title('Fitted Curve for Logical Error Rate')
+    plt.legend()
+    plt.show()
+
+
+
+
+
+
 
 
 
@@ -94,4 +144,6 @@ def compare_error_rate():
 
 if __name__ == "__main__":
 
-    compare_error_rate()
+    #plot_distribution()
+    #compare_error_rate()
+    fit_curve()
