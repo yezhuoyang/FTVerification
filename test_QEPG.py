@@ -197,7 +197,12 @@ def transpile_stim_with_noise_vector(stimString,noise_vector,totalnoise):
                 current_noise_index+=1
 
 
+    print("-----------------------------New stim circuit:---------------------------------")
+    print(newstimstr)
+
     measurement_result=s.current_measurement_record()
+
+
     detector_result.append(observableparity)
     return detector_result
 
@@ -215,13 +220,14 @@ def test_with_stim_tableau():
 
     distance=3
     circuit.set_error_rate(0.0001)  
-    stim_circuit=stim.Circuit.generated("repetition_code:memory",rounds=1,distance=distance).flattened()
+    stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=3*distance,distance=distance).flattened()
     stim_circuit=rewrite_stim_code(str(stim_circuit))
-    #print(stim_circuit)
+    print(stim_circuit)
     circuit.set_stim_str(stim_circuit)
     circuit.compile_from_stim_circuit_str(stim_circuit)
     stimcircuit=circuit.get_stim_circuit()
-    #print(stimcircuit)
+    print("----------------- Original circuit-----------------------------")
+    print(stimcircuit)
 
 
 
@@ -230,35 +236,62 @@ def test_with_stim_tableau():
     '''
     totalnoise=circuit.get_totalnoise()
     print("Total noise: ", totalnoise)
-    W=2
-
-    random_index=sample_fixed_one_two_three(totalnoise,W)
-    noise_vector=np.array([0]*3*totalnoise)
-    for i in range(totalnoise):
-        if random_index[i]==1:
-            noise_vector[i]=1
-        elif random_index[i]==2:
-            noise_vector[i+totalnoise]=1
-        elif random_index[i]==3:
-            noise_vector[i+2*totalnoise]=1    
 
 
-    detector_result=transpile_stim_with_noise_vector(str(stimcircuit),noise_vector,totalnoise)
+    for W in range(1,int(totalnoise/2)):
+        for i in range(0,40):
+            random_index=sample_fixed_one_two_three(totalnoise,W)
+            noise_vector=np.array([0]*3*totalnoise)
+            for i in range(totalnoise):
+                if random_index[i]==1:
+                    noise_vector[i]=1
+                elif random_index[i]==2:
+                    noise_vector[i+totalnoise]=1
+                elif random_index[i]==3:
+                    noise_vector[i+2*totalnoise]=1    
+
+            print("Noise vector: ", noise_vector)
 
 
-    print(detector_result)
+
+            detector_result=transpile_stim_with_noise_vector(str(stimcircuit),noise_vector,totalnoise)
+
+            print("-------------Detector result from stim: -------------")
+            print(detector_result)
 
 
-    QEPGraph=QEPG(circuit)
-        #self._QPEGraph.compute_graph()
-    QEPGraph.backword_graph_construction()    
+            QEPGraph=QEPG(circuit)
+                #self._QPEGraph.compute_graph()
+            QEPGraph.backword_graph_construction()    
 
 
-    detectorMatrix=QEPGraph._detectorMatrix%2     
-    #print(dectectorMatrix.shape, noise_vector.shape)
-    detectorresult=np.matmul(detectorMatrix, noise_vector)%2    
+            detectorMatrix=QEPGraph._detectorMatrix%2   
+            total_meas=circuit.get_totalMeas()
+            observable=circuit.get_observable()
+            parity_group=circuit.get_parityMatchGroup()
+            paritymatrix=np.zeros((len(parity_group)+1,total_meas), dtype='uint8')
 
-    print(list(detectorresult))
+            #print(len(parity_group))
+            for i in range(len(parity_group)):
+                for j in parity_group[i]:
+                    paritymatrix[i][j]=1
+            #print("observable: {}".format(observable))
+            for i in range(len(observable)):
+                paritymatrix[len(parity_group)][observable[i]]=1
+            detectorMatrix=np.matmul(paritymatrix,detectorMatrix)
+
+
+
+
+            #print(dectectorMatrix.shape, noise_vector.shape)
+            mydetectorresult=np.matmul(detectorMatrix, noise_vector)%2    
+
+
+
+            print("-------------My Detector result: -------------")
+            print(list(mydetectorresult))
+
+            assert((detector_result==list(mydetectorresult)))
 
 
 
