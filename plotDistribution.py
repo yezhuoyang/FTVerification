@@ -88,9 +88,73 @@ def compare_error_rate():
 
 
 def fit_curve():
-    distance=3
+    distance=5
     circuit=CliffordCircuit(3)
-    circuit.set_error_rate(0.01)
+    circuit.set_error_rate(0.001)
+    stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance*3,distance=distance).flattened()
+    stim_circuit=rewrite_stim_code(str(stim_circuit))
+    circuit.set_stim_str(stim_circuit)
+    circuit.compile_from_stim_circuit_str(stim_circuit) 
+
+
+    qubut_num=circuit.get_qubit_num()
+    print("Qubit num: ",qubut_num)
+
+    sampler=WSampler(circuit)
+
+
+    sampler.construct_QPEG()
+
+
+    shot=5000
+
+    #lp=sampler.binary_search_zero(1,100,500)
+    lp=5
+    rp=62
+
+    #rp=sampler.binary_search_half(1,100,600,epsilon=0.03)
+
+
+    wlist=np.linspace(lp, rp, 10)
+    wlist=[int(x) for x in wlist]
+    sampler.set_shots(int(shot/len(wlist)))
+
+
+    distribution=sampler.calc_logical_error_distribution(wlist=wlist,sList=[10000,8000,6000,4000,4000,4000,4000,4000,4000,4000])
+
+    
+    mu,alpha=sampler.fit_curve(wlist)
+
+    logical_error_rate=sampler.calc_logical_error_rate_by_curve_fitting(lp,mu,alpha)
+
+    print("Logical error rate: ",logical_error_rate)
+
+
+    xlist=np.linspace(1, 100, 1000)
+    ylist=[model_function(x,mu, alpha) for x in xlist]
+
+
+    
+    # Plot the fitted curve
+    plt.plot(wlist, [distribution[x] for x in wlist], marker='o', label='Fitted Curve')
+    plt.plot(xlist, ylist, label='Fitted Function')
+
+    plt.scatter(lp, model_function(lp,mu, alpha),marker='*', color='red', label='Left Point')
+    plt.scatter(rp, model_function(rp,mu, alpha),marker='*', color='green', label='Right Point')
+
+
+    plt.xlabel('Number of Errors')
+    plt.ylabel('Logical Error Rate')
+    plt.title('Fitted Curve for Logical Error Rate')
+    plt.legend()
+    plt.show()
+
+
+
+def test_calc_fixed_weight():
+    distance=5
+    circuit=CliffordCircuit(3)
+    circuit.set_error_rate(0.001)
     stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance*3,distance=distance).flattened()
     stim_circuit=rewrite_stim_code(str(stim_circuit))
     circuit.set_stim_str(stim_circuit)
@@ -103,34 +167,45 @@ def fit_curve():
     sampler.construct_QPEG()
 
 
-    shot=10000
+    shot=500
 
-    sampler.set_shots(shot)
+    sampler.set_shots(shot) 
 
-    wlist=[1, 4,5,7, 12,13,20,24, 25, 50, 70, 90,100]
-    distribution=sampler.calc_logical_error_distribution(wlist=wlist)
 
-    
-    alpha=sampler.fit_curve(wlist)
+    er=sampler.calc_logical_error_rate_with_fixed_w(10,80)   
 
-    logical_error_rate=sampler.calc_logical_error_rate_by_curve_fitting(alpha)
-
-    print("Logical error rate: ",logical_error_rate)
+    print("Logical error rate with fixed weight: ",er)
 
 
 
-    xlist=np.linspace(1, 100, 1000)
-    ylist=[model_function(x, alpha) for x in xlist]
+
+def test_binary_search():
+    distance=3
+    circuit=CliffordCircuit(3)
+    circuit.set_error_rate(0.0001)
+    stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance*3,distance=distance).flattened()
+    stim_circuit=rewrite_stim_code(str(stim_circuit))
+    circuit.set_stim_str(stim_circuit)
+    circuit.compile_from_stim_circuit_str(stim_circuit) 
 
 
-    # Plot the fitted curve
-    plt.plot(wlist, [distribution[x] for x in wlist], marker='o', label='Fitted Curve')
-    plt.plot(xlist, ylist, label='Fitted Function')
-    plt.xlabel('Number of Errors')
-    plt.ylabel('Logical Error Rate')
-    plt.title('Fitted Curve for Logical Error Rate')
-    plt.legend()
-    plt.show()
+    qubut_num=circuit.get_qubit_num()
+    print("Qubit num: ",qubut_num)
+
+    sampler=WSampler(circuit)
+
+
+    sampler.construct_QPEG()
+
+
+    lp=sampler.binary_search_zero(1,100,10)
+
+
+    rp=sampler.binary_search_half(1,100,40,epsilon=0.09)
+
+
+    print("Left point: ",lp)
+    print("Right point: ",rp)
 
 
 
@@ -146,4 +221,11 @@ if __name__ == "__main__":
 
     #plot_distribution()
     #compare_error_rate()
+    #fit_curve()
+
+    #test_calc_fixed_weight()
+
+    #test_binary_search()
+
+
     fit_curve()

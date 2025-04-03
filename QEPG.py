@@ -323,9 +323,8 @@ def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
-def model_function(x, alpha):
-    mu, sigma = 10, 1
-    cdf_values = 0.5*norm.cdf(x, loc=mu, scale=alpha)
+def model_function(x, mu, sigma):
+    cdf_values = 0.5*norm.cdf(x, loc=mu, scale=sigma)
     return cdf_values
 
 
@@ -342,6 +341,7 @@ class WSampler():
         self._sample_sums=[0]*self._totalnoise
 
         self._logical_error_distribution=[0]*self._totalnoise
+        self._logical_error_computed=[False]*self._totalnoise
         self._logical_error_rate=0
 
         
@@ -454,6 +454,16 @@ class WSampler():
 
 
 
+    def print_fitted_error(self,W):
+        pass
+
+
+
+
+    def print_binomial_weights(self,W):
+        for i in range(W):
+            print(f"W:{i}, weight: {self._binomial_weights[i]}")
+
 
 
     def binomial_weight(self, W):
@@ -470,9 +480,121 @@ class WSampler():
 
 
     def calc_binomial_weight(self):
+        self._binomial_weights=[0]*self._totalnoise
         for i in range(self._totalnoise):
             self._binomial_weights[i]=self.binomial_weight(i)
         
+
+
+    def calc_logical_error_rate_with_fixed_w(self,shots,W):
+        total_noise=self._totalnoise
+        parity_group=self._circuit.get_parityMatchGroup()
+        observable=self._circuit.get_observable()
+        QEPGgraph=self._QPEGraph
+        total_meas=self._circuit._totalMeas
+
+        detectorMatrix=QEPGgraph._detectorMatrix
+        paritymatrix=np.zeros((len(parity_group)+1,total_meas), dtype='uint8')
+
+        #print(len(parity_group))
+        for i in range(len(parity_group)):
+            for j in parity_group[i]:
+                paritymatrix[i][j]=1
+        #print("observable: {}".format(observable))
+        for i in range(len(observable)):
+            paritymatrix[len(parity_group)][observable[i]]=1
+        detectorMatrix=np.matmul(paritymatrix,detectorMatrix)
+        
+
+        shm_dec = shared_memory.SharedMemory(create=True, size=detectorMatrix.nbytes)
+        # Create a NumPy array backed by the shared memory
+        shared_array = np.ndarray(detectorMatrix.shape, dtype=detectorMatrix.dtype, buffer=shm_dec.buf)
+        # Copy the data into shared memory
+        shared_array[:] = detectorMatrix[:]    
+
+
+        parity_group_length=len(parity_group)
+
+        inputs=[(shots,total_noise,W,detectorMatrix.dtype.name,shm_dec.name, parity_group_length)]
+
+        
+        pool = Pool(processes=os.cpu_count(), initializer=init_worker)
+
+        try:
+            # starmap is a blocking call that collects results from each process.
+            results = pool.starmap(python_sample_noise_and_calc_result, inputs)
+        except KeyboardInterrupt:
+            # Handle Ctrl-C gracefully.
+            print("KeyboardInterrupt received. Terminating pool...")
+            pool.terminate()
+            pool.join()
+            return  # or re-raise if you want to propagate the exception
+
+
+        self._logical_error_rate=0
+
+
+        # 'results' is a list of lists, e.g., [[1, 10, 100], [2, 20, 200], ...]
+        # You can concatenate them using a list comprehension or itertools.chain.
+        detections=np.array([item for result in results for item in result[0]])
+        #detections = np.array([result[0] for result in results])
+        #observables = [result[1] for result in results]
+        observables=np.array([item for result in results for item in result[1]])       
+
+        detector_error_model = self._circuit._stimcircuit.detector_error_model(decompose_errors=True)
+        matcher = pymatching.Matching.from_detector_error_model(detector_error_model)
+
+
+        predictions = matcher.decode_batch(detections)
+
+        flattened_predictions = [item for sublist in predictions for item in sublist]
+        flattened_observables = [item for sublist in observables for item in sublist]   
+        errorshots = sum(1 for a, b in zip(flattened_predictions, flattened_observables) if a != b)
+
+
+
+        return errorshots/shots
+
+
+
+    '''
+    Use binary search to determine the 
+    exact number of errors that give non-zero logical error rate
+    We just try 10 samples
+    '''
+    def binary_search_zero(self,low,high,shots):
+        left=low
+        right=high
+        while left<right:
+            print(left,right)
+            mid=(left+right)//2
+            er=self.calc_logical_error_rate_with_fixed_w(shots,mid)
+            if er>0:
+                right=mid
+            else:
+                left=mid+1
+        return left
+
+
+
+    '''
+    Use binary search to determine the exact number of errors 
+    that give saturate logical error rate
+    We just try 10 samples
+    '''
+    def binary_search_half(self,low,high, shots, epsilon=1e-2):
+        left=low
+        right=high
+        while left<right:
+            print(left,right)
+            mid=(left+right)//2
+            er=self.calc_logical_error_rate_with_fixed_w(shots,mid)
+            if er>(0.5-epsilon):
+                right=mid
+            else:
+                left=mid+1
+        return left
+
 
     
     def calc_logical_error_rate_parallel(self,error_rate_list):
@@ -625,11 +747,10 @@ class WSampler():
     '''
     def fit_curve(self,wlist):
         # Initial guess for alpha
-        initial_guess = [1.0]
+        initial_guess = [10,1.0]
 
-        # Set bounds: alpha > 0 means the lower bound for alpha is 0
-        # You can also set an upper bound if you want, e.g. np.inf for no upper limit
-        bounds = (0, np.inf)
+
+        sigmas=[x*2 for x in wlist]
 
         # Perform the curve fit with the bounds
         popt, pcov = curve_fit(
@@ -637,28 +758,45 @@ class WSampler():
             wlist, 
             [self._logical_error_distribution[x] for x in wlist], 
             p0=initial_guess, 
-            bounds=bounds
+            sigma=sigmas,
         )
 
         # Extract the best-fit parameter (alpha)
-        alpha_fit = popt[0]
-        print(f"Fitted alpha: {alpha_fit}")
-        return alpha_fit
+        mu,sigma = popt[0],popt[1]
+        return mu,sigma
 
 
-    def calc_logical_error_rate_by_curve_fitting(self,alpha):
+    def calc_logical_error_rate_by_curve_fitting(self,lp,mu,alpha):
         self._logical_error_rate=0
         self._binomial_weights=[0]*self._totalnoise
         self.calc_binomial_weight()
-        for i in range(1,self._totalnoise):
-            self._logical_error_rate+=model_function(i,alpha)*self._binomial_weights[i]
+        for i in range(lp,self._totalnoise):
+            
+            if self._logical_error_computed[i]:
+                self._logical_error_rate+=self._logical_error_distribution[i]*self._binomial_weights[i]
+                print("W:{}, weight: {}, subspace error rate: {}  ,logical error rate: {}".format(i,self._binomial_weights[i],self._logical_error_distribution[i],self._logical_error_distribution[i]*self._binomial_weights[i]))
+            else:            
+                self._logical_error_rate+=model_function(i,mu,alpha)*self._binomial_weights[i]
+                print("W:{}, weight: {}, subspace error rate: {} ,logical error rate: {}".format(i,self._binomial_weights[i],model_function(i,mu,alpha),model_function(i,mu,alpha)*self._binomial_weights[i]))
         return self._logical_error_rate
 
 
 
-    def calc_logical_error_distribution(self,wlist=None):
+    def sequential_calc_logical_error_distribution(self,wlist,sList):
+        self._logical_error_distribution=[0]*self._totalnoise
 
-        shots=self._shots
+
+        for i in range(len(wlist)):
+            self._logical_error_distribution[wlist[i]]=self.calc_logical_error_rate_with_fixed_w(sList[i],wlist[i])
+            self._logical_error_computed[wlist[i]]=True
+            print("Weight: {}".format(wlist[i]))
+            print(self._logical_error_distribution[wlist[i]])
+
+        return self._logical_error_distribution
+
+
+    def calc_logical_error_distribution(self,wlist=None,sList=None):
+
         total_noise=self._totalnoise
         parity_group=self._circuit.get_parityMatchGroup()
         observable=self._circuit.get_observable()
@@ -691,10 +829,16 @@ class WSampler():
         L=total_noise
         if wlist is None:
             wlist=[i for i in range(total_noise)]
+            sList=[self._shots//L for i in range(total_noise)]
         else:
             L=len(wlist)
         for i in range(L):
-            inputs=inputs+[(shots,total_noise,wlist[i],detectorMatrix.dtype.name,shm_dec.name, parity_group_length)]
+            inputs=inputs+[(sList[i],total_noise,wlist[i],detectorMatrix.dtype.name,shm_dec.name, parity_group_length)]
+        
+
+
+        print("inputs: "+str(inputs))
+
 
         
         pool = Pool(processes=os.cpu_count(), initializer=init_worker)
@@ -732,11 +876,32 @@ class WSampler():
         flattened_observables = [item for sublist in observables for item in sublist]   
 
 
+        '''
+        Calcualate the cummulated sum of the shots
+        '''
+        sumList=[0]*(L+1)
+        for i in range(1,L+1):
+            sumList[i]=sumList[i-1]+sList[i-1]
+
+
+        print("subList: "+str(sumList))            
+
+
+
+
+
+
         for i in range(0,L):
-            tmp_flattened_predictions= flattened_predictions[i*self._shots:(i+1)*self._shots]
-            tmp_flattened_observables= flattened_observables[i*self._shots:(i+1)*self._shots]
+
+            print("Weight: {}".format(wlist[i]))
+            print("Sample number: {}".format(sList[i]))
+
+            print("Sample from: {}-{}".format(sumList[i],sumList[i+1]))
+
+            tmp_flattened_predictions= flattened_predictions[sumList[i]:sumList[i+1]]
+            tmp_flattened_observables= flattened_observables[sumList[i]:sumList[i+1]]
             errorshots = sum(1 for a, b in zip(tmp_flattened_predictions, tmp_flattened_observables) if a != b)
-            self._logical_error_distribution[wlist[i]]=errorshots/self._shots
+            self._logical_error_distribution[wlist[i]]=errorshots/sList[i]
             #self._logical_error_rate+=self._binomial_weights[i]*self._logical_error_distribution[i]
 
         return self._logical_error_distribution
@@ -749,11 +914,18 @@ class WSampler():
 
         wrange=20
         min_W=0
-        max_W=80
+        max_W=20
         self._binomial_weights=[0]*self._totalnoise
         self.calc_binomial_weight()
+
+        
         self.calc_sample_num(self._shots,min_W,max_W)
         self.calc_sample_sum(min_W,max_W)
+        '''
+        self._sample_nums=[0]*self._totalnoise
+        for i in range(min_W,max_W+1):
+            self._sample_nums[i]=self._shots
+        '''
 
         #print(self._sample_nums)
         #print(self._sample_sums)
@@ -852,6 +1024,7 @@ class WSampler():
                 errorshots = sum(1 for a, b in zip(tmp_flattened_predictions, tmp_flattened_observables) if a != b)
                 self._logical_error_distribution[min_W+i]=errorshots/self._sample_nums[min_W+i] 
                 self._logical_error_rate+=self._binomial_weights[min_W+i]*self._logical_error_distribution[min_W+i]
+
 
         for i in range(max_W+1,self._totalnoise):
             self._logical_error_rate+=self._binomial_weights[i]*0.5

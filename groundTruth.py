@@ -221,7 +221,7 @@ def Heavy_Square():
 
 
 def stim_samples_repitition():
-    distance=3
+    distance=5
     circuit=CliffordCircuit(2)
     circuit.set_error_rate(0.001)
     stim_circuit=stim.Circuit.generated("repetition_code:memory",rounds=distance*3,distance=distance).flattened()
@@ -230,9 +230,9 @@ def stim_samples_repitition():
     circuit.compile_from_stim_circuit_str(stim_circuit)           
     new_stim_circuit=circuit.get_stim_circuit()        
 
-    shots_list=[100,500,800,1000,2000,3000,5000,8000,10000,20000,30000,50000,80000,100000,200000,300000,500000,800000,1000000]
+    shots_list=[10000,50000,80000,100000,200000,300000,500000,800000]
 
-    ground_truth=6.38e-5
+    ground_truth=1.18e-6
 
     for shot in shots_list:
 

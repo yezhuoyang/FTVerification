@@ -6,7 +6,7 @@ from QEPG import *
 def QEPG_sample():
     distance=3
     circuit=CliffordCircuit(2)
-    circuit.set_error_rate(0.01)
+    circuit.set_error_rate(0.0001)
     stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance*3,distance=distance).flattened()
     stim_circuit=rewrite_stim_code(str(stim_circuit))
     circuit.set_stim_str(stim_circuit)
@@ -19,18 +19,29 @@ def QEPG_sample():
     sampler.construct_QPEG()
 
 
-    shot_list=[10,20,30,40,50,80,100,150,200,300,400,500,600,700,800,900,1000]
+    shot_list=[10,20,30,40,50,80,100,150,200,300,400,500,600,700,800,900,1000,10000,20000,40000]
     for shot in shot_list:
+
+        shot=int(shot/10)
+
         sampler.set_shots(shot)
-        errorrate,variance=sampler.calc_logical_error_rate()
-        print(errorrate,variance)
+
+        wlist=[5, 12, 20, 24,  50, 90,100 ,200]
+        distribution=sampler.calc_logical_error_distribution(wlist=wlist)
+
+        
+        mu,alpha=sampler.fit_curve(wlist)
+
+        logical_error_rate=sampler.calc_logical_error_rate_by_curve_fitting(mu,alpha)
+
+        print(f"Shots:{shot*10}   Logical error rate: {logical_error_rate} ")
 
 
 
 def stim_sample():
-    distance=3
+    distance=5
     circuit=CliffordCircuit(2)
-    circuit.set_error_rate(0.01)
+    circuit.set_error_rate(0.001)
     stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance*3,distance=distance).flattened()
     stim_circuit=rewrite_stim_code(str(stim_circuit))
     circuit.set_stim_str(stim_circuit)
@@ -38,11 +49,12 @@ def stim_sample():
         
     Nsampler=NaiveSampler(circuit)
     
-    shot_list=[10,20,30,40,50,80,100]
+    shot_list=[5000,10000,20000,40000]
     for shot in shot_list:
         Nsampler.set_shots(shot)
         #Nsampler.construct_QPEG()
         errorrate,variance=Nsampler.calc_logical_error_rate()
+        print(f"Shot: {shot}")
         print(errorrate,variance)
 
 
@@ -76,7 +88,6 @@ def compare_two_method():
         print(errorrate,variance)
         error_rate_list1.append(errorrate)
         var_list1.append(variance)  
-
 
 
         Nsampler.set_shots(shot)
@@ -117,5 +128,6 @@ def compare_two_method():
 
 
 if __name__ == "__main__":
-
-    compare_two_method()
+    #QEPG_sample()   
+    #compare_two_method()
+    stim_sample()
