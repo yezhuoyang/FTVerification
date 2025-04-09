@@ -171,10 +171,10 @@ def calc_logical_error():
 
 
 def fit_curve():
-    distance=5
+    distance=3
     circuit=CliffordCircuit(3)
-    circuit.set_error_rate(0.001)
-    stim_circuit=stim.Circuit.generated("repetition_code:memory",rounds=distance*3,distance=distance).flattened()
+    circuit.set_error_rate(0.0001)
+    stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance*3,distance=distance).flattened()
     stim_circuit=rewrite_stim_code(str(stim_circuit))
     circuit.set_stim_str(stim_circuit)
     circuit.compile_from_stim_circuit_str(stim_circuit) 
@@ -194,14 +194,16 @@ def fit_curve():
 
     shot=5000
 
+    ground_truth=2.254e-05
+
     #lp=sampler.binary_search_zero(1,100,500)
     lp=1
-    rp=20
+    rp=10
 
     #rp=sampler.binary_search_half(1,100,600,epsilon=0.03)
 
 
-    wlist=np.linspace(lp, rp, 20)
+    wlist=np.linspace(lp, rp, 10)
     #wlist=list(range(lp, rp+1, 1))
 
     print("Wlist:")
@@ -211,17 +213,18 @@ def fit_curve():
     sampler.set_shots(int(shot/len(wlist)))
 
 
-    distribution=sampler.sequential_calc_logical_error_distribution(wlist=wlist,sList=[600,300,30000,500,500,100,40,40,40,40]+[40]*10)
+    distribution=sampler.sequential_calc_logical_error_distribution(wlist=wlist,sList=[5000]*len(wlist))
 
-    
+
     mu,alpha=sampler.fit_curve(wlist)
 
     logical_error_rate=sampler.calc_logical_error_rate_by_curve_fitting(lp,mu,alpha)
 
-
+    accuracy = abs((logical_error_rate - ground_truth) / ground_truth) * 100
 
     print("Logical error rate: ",logical_error_rate)
 
+    print("Accuracy: ",accuracy)
 
     xlist=np.linspace(1, 100, 1000)
     ylist=[model_function(x,mu, alpha) for x in xlist]
@@ -245,6 +248,10 @@ def fit_curve():
     plt.title('Fitted Curve for Logical Error Rate')
     plt.legend()
     plt.show()
+
+
+
+
 
 
 

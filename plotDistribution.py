@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 Plot the distribuition of logical error rate for different number of errors
 '''
 def plot_distribution():
-    distance=5
+    distance=13
     circuit=CliffordCircuit(3)
     circuit.set_error_rate(0.00001)
     stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance*3,distance=distance).flattened()
@@ -88,7 +88,7 @@ def compare_error_rate():
 
 
 def fit_curve():
-    distance=5
+    distance=13
     circuit=CliffordCircuit(3)
     circuit.set_error_rate(0.001)
     stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance*3,distance=distance).flattened()
