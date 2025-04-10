@@ -487,6 +487,10 @@ class WSampler():
 
 
     def calc_logical_error_rate_with_fixed_w(self,shots,W):
+
+        print("W: {}".format(W))
+
+
         total_noise=self._totalnoise
         parity_group=self._circuit.get_parityMatchGroup()
         observable=self._circuit.get_observable()
@@ -774,10 +778,12 @@ class WSampler():
             
             if self._logical_error_computed[i]:
                 self._logical_error_rate+=self._logical_error_distribution[i]*self._binomial_weights[i]
-                print("W:{}, weight: {}, subspace error rate: {}  ,logical error rate: {}".format(i,self._binomial_weights[i],self._logical_error_distribution[i],self._logical_error_distribution[i]*self._binomial_weights[i]))
+                if(i<20):
+                    print("W:{}, weight: {}, subspace error rate: {}  ,logical error rate: {}".format(i,self._binomial_weights[i],self._logical_error_distribution[i],self._logical_error_distribution[i]*self._binomial_weights[i]))
             else:           
                 self._logical_error_rate+=model_function(i,mu,alpha)*self._binomial_weights[i]
-                print("W:{}, weight: {}, subspace error rate: {} ,logical error rate: {}".format(i,self._binomial_weights[i],model_function(i,mu,alpha),model_function(i,mu,alpha)*self._binomial_weights[i]))
+                if(i<20):
+                    print("W:{}, weight: {}, subspace error rate: {} ,logical error rate: {}".format(i,self._binomial_weights[i],model_function(i,mu,alpha),model_function(i,mu,alpha)*self._binomial_weights[i]))
         return self._logical_error_rate
 
 
@@ -789,8 +795,8 @@ class WSampler():
         for i in range(len(wlist)):
             self._logical_error_distribution[wlist[i]]=self.calc_logical_error_rate_with_fixed_w(sList[i],wlist[i])
             self._logical_error_computed[wlist[i]]=True
-            #print("Weight: {}".format(wlist[i]))
-            #print(self._logical_error_distribution[wlist[i]])
+            print("Weight: {}".format(wlist[i]))
+            print(self._logical_error_distribution[wlist[i]])
 
         return self._logical_error_distribution
 

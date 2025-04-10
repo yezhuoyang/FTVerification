@@ -171,9 +171,9 @@ def calc_logical_error():
 
 
 def fit_curve():
-    distance=3
+    distance=7
     circuit=CliffordCircuit(3)
-    circuit.set_error_rate(0.0001)
+    circuit.set_error_rate(0.0005)
     stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance*3,distance=distance).flattened()
     stim_circuit=rewrite_stim_code(str(stim_circuit))
     circuit.set_stim_str(stim_circuit)
@@ -194,7 +194,7 @@ def fit_curve():
 
     shot=5000
 
-    ground_truth=2.254e-05
+    ground_truth=5.7e-06
 
     #lp=sampler.binary_search_zero(1,100,500)
     lp=1
@@ -213,7 +213,7 @@ def fit_curve():
     sampler.set_shots(int(shot/len(wlist)))
 
 
-    distribution=sampler.sequential_calc_logical_error_distribution(wlist=wlist,sList=[5000]*len(wlist))
+    distribution=sampler.sequential_calc_logical_error_distribution(wlist=wlist,sList=[10]*len(wlist))
 
 
     mu,alpha=sampler.fit_curve(wlist)
