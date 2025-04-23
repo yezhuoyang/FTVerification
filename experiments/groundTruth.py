@@ -95,6 +95,157 @@ def surface_groundTruth():
 
 
 
+def surface_groundTruth2():
+    distance=3
+
+
+    #plist=[0.1,0.01,0.001,0.0001,0.00001,0.000001,0.0000001]
+    #samplelist=[100000,500000,1000000,10000000,100000000,100000000,100000000]
+    plist=[0.00001,0.000001,0.0000001]
+    samplelist=[500000000,1000000000,1000000000]
+
+
+    for i in range(len(plist)):
+        p=plist[i]
+        sample=samplelist[i]
+        circuit=CliffordCircuit(2)
+        circuit.set_error_rate(p)
+        stim_circuit=stim.Circuit.generated("surface_code:rotated_memory_z",rounds=distance*3,distance=distance).flattened()
+        stim_circuit=rewrite_stim_code(str(stim_circuit))
+        circuit.set_stim_str(stim_circuit)
+        circuit.compile_from_stim_circuit_str(stim_circuit)          
+
+
+        
+
+        new_stim_circuit=circuit.get_stim_circuit()        
+
+        num_shots = sample
+        num_logical_errors = count_logical_errors(new_stim_circuit, num_shots)
+
+
+
+        error_rate= num_logical_errors / num_shots
+        print(f"p: {p}, Sample number: {sample}, Error rate: {error_rate:.9e}")
+
+
+
+def repitition_groundTruth2():
+    distance = 3
+
+    print("Repetition code ground truth")
+
+    #plist = [0.1, 0.01, 0.001, 0.0001, 0.00001]
+    #samplelist = [100000, 500000, 1000000, 100000000, 500000000]
+
+    plist = [0.00001]
+    samplelist = [1000000000]
+    #plist = [0.1, 0.01, 0.001, 0.0001, 0.00001, 0.000001, 0.0000001]
+    #samplelist = [100, 50, 10, 100, 500, 100, 100]
+    # Open file to store output
+    with open("rep_output_log.txt", "w") as logfile:
+        
+        for i in range(len(plist)):
+            p = plist[i]
+            sample = samplelist[i]
+            print(f"p: {p}, Sample number: {sample}")
+
+            circuit = CliffordCircuit(2)
+            circuit.set_error_rate(p)
+            stim_circuit = stim.Circuit.generated("repetition_code:memory", rounds=distance*3, distance=distance).flattened()
+            stim_circuit = rewrite_stim_code(str(stim_circuit))
+            circuit.set_stim_str(stim_circuit)
+            circuit.compile_from_stim_circuit_str(stim_circuit)
+
+            new_stim_circuit = circuit.get_stim_circuit()
+
+            num_shots = sample
+            num_logical_errors = count_logical_errors(new_stim_circuit, num_shots)
+
+            error_rate = num_logical_errors / num_shots
+            output = f"Repetition code: p: {p}, Sample number: {sample}, Error rate: {error_rate:.9e}"
+            
+            print(output)  # Print to stdout
+            logfile.write(output + "\n")  # Write to file
+
+
+def square_groundTruth2():
+    distance = 3
+
+    print("Square code ground truth")
+
+    plist = [0.0001]
+    samplelist = [50000000]
+
+    #plist = [0.1, 0.01, 0.001, 0.0001, 0.00001, 0.000001, 0.0000001]
+    #samplelist = [100, 50, 10, 100, 500, 100, 100]
+    # Open file to store output
+    with open("square_output_log.txt", "w") as logfile:
+
+        for i in range(len(plist)):
+            p = plist[i]
+            sample = samplelist[i]
+
+            circuit = CliffordCircuit(2)
+            circuit.set_error_rate(p)
+            stim_circuit=stim.Circuit(heavy_square_4_circ(p, distance*3, distance)).flattened()
+            stim_str=rewrite_stim_code(str(stim_circuit))
+            circuit=CliffordCircuit(2)
+            circuit.set_error_rate(p)
+            circuit.set_stim_str(stim_str)
+            circuit.compile_from_stim_circuit_str(stim_str)
+            new_stim_circuit=circuit.get_stim_circuit()     
+
+            num_shots = sample
+            num_logical_errors = count_logical_errors(new_stim_circuit, num_shots)
+
+            error_rate = num_logical_errors / num_shots
+            output = f"Heavy square code: p: {p}, Sample number: {sample}, Error rate: {error_rate:.9e}"
+            
+            print(output)  # Print to stdout
+            logfile.write(output + "\n")  # Write to file
+
+
+
+def hexagon_groundTruth2():
+    distance = 3
+
+    print("Hexagon code ground truth")
+
+    #plist = [0.1, 0.01, 0.001, 0.0001, 0.00001]
+    #samplelist = [100000, 500000, 1000000, 10000000, 10000000]
+
+    plist = [0.00001]
+    samplelist = [50000000]
+
+    #plist = [0.1, 0.01, 0.001, 0.0001, 0.00001, 0.000001, 0.0000001]
+    #samplelist = [100, 50, 10, 100, 500, 100, 100]
+    # Open file to store output
+    with open("hexagon_output_log.txt", "w") as logfile:
+
+        for i in range(len(plist)):
+            p = plist[i]
+            sample = samplelist[i]
+
+            circuit = CliffordCircuit(2)
+            circuit.set_error_rate(p)
+            
+            stim_circuit=stim.Circuit(hexagon_3_circ(p, distance*3, distance)).flattened()
+            stim_str=rewrite_stim_code(str(stim_circuit))
+            circuit=CliffordCircuit(2)
+            circuit.set_error_rate(p)
+            circuit.set_stim_str(stim_str)
+            circuit.compile_from_stim_circuit_str(stim_str)
+            new_stim_circuit=circuit.get_stim_circuit()     
+
+            num_shots = sample
+            num_logical_errors = count_logical_errors(new_stim_circuit, num_shots)
+
+            error_rate = num_logical_errors / num_shots
+            output = f"Hexagon code: p: {p}, Sample number: {sample}, Error rate: {error_rate:.9e}"
+            
+            print(output)  # Print to stdout
+            logfile.write(output + "\n")  # Write to file
 
 def repitition_groundTruth():
     distance=3
@@ -233,10 +384,7 @@ def Heavy_square():
 
 
     distance=5
-    circuit=CliffordCircuit(2)
-
-    circuit.set_error_rate(0.0001)
-    stim_circuit=stim.Circuit(heavy_square_4_circ(0.01, distance*3, distance)).flattened()
+    stim_circuit=stim.Circuit(heavy_square_4_circ(0.0001, distance*3, distance)).flattened()
     stim_str=rewrite_stim_code(str(stim_circuit))
     circuit=CliffordCircuit(2)
     circuit.set_error_rate(0.0001)
@@ -245,7 +393,7 @@ def Heavy_square():
     new_stim_circuit=circuit.get_stim_circuit()     
 
 
-    num_shots = 50000000
+    num_shots = 10000000
     num_logical_errors = count_logical_errors(new_stim_circuit, num_shots)
 
     error_rate= num_logical_errors / num_shots
@@ -255,17 +403,17 @@ def Heavy_square():
     distance=7
     circuit=CliffordCircuit(2)
 
-    circuit.set_error_rate(0.001)
+
     stim_circuit=stim.Circuit(heavy_square_4_circ(0.001, distance*3, distance)).flattened()
     stim_str=rewrite_stim_code(str(stim_circuit))
     circuit=CliffordCircuit(2)
-    circuit.set_error_rate(0.001)
+    circuit.set_error_rate(0.0003)
     circuit.set_stim_str(stim_str)
     circuit.compile_from_stim_circuit_str(stim_str)
     new_stim_circuit=circuit.get_stim_circuit()     
 
 
-    num_shots = 50000000
+    num_shots =  10000000
     num_logical_errors = count_logical_errors(new_stim_circuit, num_shots)
 
     error_rate= num_logical_errors / num_shots
@@ -280,7 +428,7 @@ def Heavy_hexagon():
     circuit=CliffordCircuit(2)
 
     circuit.set_error_rate(0.00005)
-    stim_circuit=stim.Circuit(hexagon_3_circ(0.01, distance*3, distance)).flattened()
+    stim_circuit=stim.Circuit(hexagon_3_circ(0.00005, distance*3, distance)).flattened()
     stim_str=rewrite_stim_code(str(stim_circuit))
     circuit=CliffordCircuit(2)
     circuit.set_error_rate(0.00005)
@@ -289,7 +437,7 @@ def Heavy_hexagon():
     new_stim_circuit=circuit.get_stim_circuit()     
 
 
-    num_shots = 100
+    num_shots = 100000000
     num_logical_errors = count_logical_errors(new_stim_circuit, num_shots)
 
     error_rate= num_logical_errors / num_shots
@@ -298,9 +446,7 @@ def Heavy_hexagon():
 
 
     distance=5
-    circuit=CliffordCircuit(2)
 
-    circuit.set_error_rate(0.0001)
     stim_circuit=stim.Circuit(hexagon_3_circ(0.01, distance*3, distance)).flattened()
     stim_str=rewrite_stim_code(str(stim_circuit))
     circuit=CliffordCircuit(2)
@@ -310,7 +456,7 @@ def Heavy_hexagon():
     new_stim_circuit=circuit.get_stim_circuit()     
 
 
-    num_shots = 50000000
+    num_shots =10000000
     num_logical_errors = count_logical_errors(new_stim_circuit, num_shots)
 
     error_rate= num_logical_errors / num_shots
@@ -318,19 +464,17 @@ def Heavy_hexagon():
 
 
     distance=7
-    circuit=CliffordCircuit(2)
-
-    circuit.set_error_rate(0.001)
-    stim_circuit=stim.Circuit(hexagon_3_circ(0.001, distance*3, distance)).flattened()
+ 
+    stim_circuit=stim.Circuit(hexagon_3_circ(0.0003, distance*3, distance)).flattened()
     stim_str=rewrite_stim_code(str(stim_circuit))
     circuit=CliffordCircuit(2)
-    circuit.set_error_rate(0.001)
+    circuit.set_error_rate(0.0003)
     circuit.set_stim_str(stim_str)
     circuit.compile_from_stim_circuit_str(stim_str)
     new_stim_circuit=circuit.get_stim_circuit()     
 
 
-    num_shots = 50000000
+    num_shots = 10000000
     num_logical_errors = count_logical_errors(new_stim_circuit, num_shots)
 
     error_rate= num_logical_errors / num_shots
@@ -413,11 +557,11 @@ def stim_samples(distance,p,shots_list,ground_truth,code_type,filename):
         avg_accuracies.append(mean_accuracy)
         std_devs.append(std_accuracy)
 
-        print(f"Shots: {shot}, Mean Accuracy: {mean_accuracy:.4f}%, Std Dev: {std_accuracy:.4f}")
+        print(f"Shots: {shot}, Mean Error: {mean_accuracy:.4f}%, Std Dev: {std_accuracy:.4f}")
 
     # Exponential decay fitting: f(x) = A * exp(-alpha * x) + B
-    def slow_decay(x, A, alpha):
-        return A / (1 + alpha * x)
+    def slow_decay(x, A):
+        return A / np.sqrt(x)
 
     shots_array = np.array(shots_list)
     accuracies_array = np.array(avg_accuracies)
@@ -428,12 +572,12 @@ def stim_samples(distance,p,shots_list,ground_truth,code_type,filename):
         slow_decay,
         shots_array,
         accuracies_array,
-        p0=(100, 0.0005),
+        p0=(100),
         #sigma=std_devs_array,
         #absolute_sigma=True
     )
 
-    print(f"Fitted parameters: A={popt[0]}, alpha={popt[1]}")
+    print(f"Fitted parameters: A={popt[0]}")
 
     fitted_accuracies = slow_decay(shots_array, *popt)
 
@@ -449,14 +593,14 @@ def stim_samples(distance,p,shots_list,ground_truth,code_type,filename):
 
     # Plotting
     fig=plt.figure(figsize=(10, 6))
-    plt.errorbar(shots_list, avg_accuracies, yerr=std_devs, fmt='o', label='Mean Accuracy (±1 std)')
-    plt.plot(shots_array, fitted_accuracies, linestyle='--', label='Exponential Fit')
-    plt.axhline(y=target_accuracy, color='r', linestyle=':', label='5% Accuracy Threshold')
+    plt.errorbar(shots_list, avg_accuracies, yerr=std_devs, fmt='o', label='Mean Error (±1 std)')
+    plt.plot(shots_array, fitted_accuracies, linestyle='--', label='Fit the curve by 1/sqrt(x)')
+    plt.axhline(y=target_accuracy, color='r', linestyle=':', label='5% MAE Error Threshold')
     if threshold_shot:
-        plt.axvline(x=threshold_shot, color='g', linestyle='--', label=f'Threshold Samples ≈ {threshold_shot}')
+        plt.axvline(x=threshold_shot, color='g', linestyle='--', label=f'MAE Threshold Samples ≈ {threshold_shot}')
     plt.xlabel('Number of Shots')
-    plt.ylabel('Accuracy (%)')
-    plt.title('Accuracy vs. Number of Samples')
+    plt.ylabel('MAE Error (%)')
+    plt.title('MAE Error vs. Number of Samples')
     plt.legend()
     plt.grid(True)
     plt.savefig(filename+".png")
@@ -495,7 +639,7 @@ def my_samples(distance,p,shots_list,ground_truth,code_type,filename):
 
     #lp=sampler.binary_search_zero(1,100,500)
     lp=2
-    rp=13
+    rp=100
 
     #rp=sampler.binary_search_half(1,100,600,epsilon=0.03)
     wlist=np.linspace(lp, rp, 12)
@@ -510,14 +654,15 @@ def my_samples(distance,p,shots_list,ground_truth,code_type,filename):
     for shot in (shots_list):
         accuracy_list = []
         for _ in range(5):
-            distribution=sampler.sequential_calc_logical_error_distribution(wlist=wlist,sList=[shot//2]+[shot//4]+[(shot-shot//2-shot//4)//10]*10)
+
+            distribution=sampler.sequential_calc_logical_error_distribution(wlist=wlist,sList=[shot//2]+[max(shot//4,1)]+[max((shot-shot//2-shot//4)//10,1)]*10)
             #distribution=sampler.sequential_calc_logical_error_distribution(wlist=wlist,sList=[shot//4]+[shot//4]+[shot//4]+[(shot//4)//9]*9)
             mu,alpha=sampler.fit_curve(wlist)
             logical_error_rate=sampler.calc_logical_error_rate_by_curve_fitting(lp,mu,alpha)
             accuracy = abs((logical_error_rate - ground_truth) / ground_truth) * 100
             accuracy_list.append(accuracy)
 
-            print(f"Shots: {shot}, Logical Error Rate: {logical_error_rate:.9e}, Accuracy: {accuracy:.4f}%")
+            print(f"Shots: {shot}, Logical Error Rate: {logical_error_rate:.9e}, Error: {accuracy:.4f}%")
 
         mean_accuracy = np.mean(accuracy_list)
         std_accuracy = np.std(accuracy_list)
@@ -525,7 +670,7 @@ def my_samples(distance,p,shots_list,ground_truth,code_type,filename):
         avg_accuracies.append(mean_accuracy)
         std_devs.append(std_accuracy)
 
-        print(f"Shots: {shot}, Mean Accuracy: {mean_accuracy:.4f}%, Std Dev: {std_accuracy:.4f}")
+        print(f"Shots: {shot}, Mean Error: {mean_accuracy:.4f}%, Std Dev: {std_accuracy:.4f}")
 
 
     # Exponential decay fitting: f(x) = A * exp(-alpha * x) + B
@@ -562,14 +707,14 @@ def my_samples(distance,p,shots_list,ground_truth,code_type,filename):
 
     # Plotting
     fig=plt.figure(figsize=(10, 6))
-    plt.errorbar(shots_list, avg_accuracies, yerr=std_devs, fmt='o', label='Mean Accuracy (±1 std)')
+    plt.errorbar(shots_list, avg_accuracies, yerr=std_devs, fmt='o', label='Mean Error (±1 std)')
     plt.plot(shots_array, fitted_accuracies, linestyle='--', label='Exponential Fit')
-    plt.axhline(y=target_accuracy, color='r', linestyle=':', label='5% Accuracy Threshold')
+    plt.axhline(y=target_accuracy, color='r', linestyle=':', label='5% Error Threshold')
     if threshold_shot:
         plt.axvline(x=threshold_shot, color='g', linestyle='--', label=f'Threshold Samples≈ {threshold_shot}')
     plt.xlabel('Number of Shots')
-    plt.ylabel('Accuracy (%)')
-    plt.title('Accuracy vs. Number of Samples')
+    plt.ylabel('Error (%)')
+    plt.title('Error vs. Number of Samples')
     plt.legend()
     plt.grid(True)
     plt.savefig(filename+".png")
@@ -656,23 +801,112 @@ if __name__ == "__main__":
     Heavy_square()
     '''
 
+    
+    
+    #stim_samples(distance=3,p=0.1,shots_list=[10,15,20,25,30,35,50,100,200,400,600,800,1000,1200,1500,2000,2500],ground_truth=5.0027e-01,code_type="surface_code:rotated_memory_z",filename="stimsurface3.1")
+    
+
+
+    #stim_samples(distance=3,p=0.01,shots_list=[10,15,20,25,30,35,50,100,200,400,600,800,1000,1200,1500,2000,2500,3500,4000,5000,5500,6000,6500,7000,7500,8000,8500,9000],ground_truth=1.4942e-01,code_type="surface_code:rotated_memory_z",filename="stimsurface3.01")
+    
+
+    #stim_samples(distance=3,p=0.001,shots_list=[500,600,800,1000,1200,1500,2000,2500,3500,4000,5000,5500,6000,6500,7000,7500,8000,8500,9000,13000,15000,20000,25000,30000,35000,40000],ground_truth=2.252e-03,code_type="surface_code:rotated_memory_z",filename="stimsurface3.001")
+    #stim_samples(distance=3,p=0.0001,shots_list=[5000,8000,12000,15000,30000,80000,180000,280000,400000,600000,800000,1000000,1500000,2000000,2200000,2600000,3300000],ground_truth=2.29e-05,code_type="surface_code:rotated_memory_z",filename="stimsurface3.0001")
+
+
+    stim_samples(distance=3,p=0.00001,shots_list=[8000,12000,15000,30000,80000,180000,280000,400000,800000,1000000,1500000,2000000,2600000,3300000,6000000,9000000,12000000,36000000,48000000,64000000,98000000,130000000,260000000],ground_truth=2.32e-07,code_type="surface_code:rotated_memory_z",filename="stimsurface3.00001")
+    '''    
+    stim_samples(distance=5,p=0.0001,shots_list=[50000,100000,250000,500000,1000000,2200000,4200000,7000000,9000000,10000000],ground_truth=2.2e-06,code_type="hexagon",filename="results/stimhexagon5.0001")
+    '''
 
 
 
 
-    stim_samples(distance=3,p=0.00005,shots_list=[10000,20000,50000,80000,100000,200000,500000,1000000,1500000,2000000,2500000,2800000,3200000,3600000,4000000,4500000],ground_truth=5.632e-05,code_type="heavy_square",filename="results/stimheavysquared3.00005")
+
+    '''
+    stim_samples(distance=5,p=0.0001,shots_list=[10000,20000,50000,80000,100000,200000,500000,1000000,1500000,2000000,2500000,2800000,3200000,3600000,4000000,4500000],ground_truth=3.4e-06,code_type="heavy_square",filename="results/stimheavysquared5.0001")
     
         
-    stim_samples(distance=3,p=0.00005,shots_list=[10000,20000,50000,80000,100000,200000,500000,1000000,1500000,2000000,2500000,2800000,3200000,3600000,4000000,4500000],ground_truth=5.633e-05,code_type="hexagon",filename="results/stimhexagond3.00005")
+    stim_samples(distance=7,p=0.0003,shots_list=[10000,20000,50000,80000,100000,200000,500000,1000000,1500000,2000000,2500000,2800000,3200000,3600000,4000000,4500000],ground_truth=5.633e-05,code_type="heavy_square",filename="results/stimheavysquared7.0003")
+    '''
+
+
+
+    
+    #my_samples(distance=5,p=0.0001,shots_list=[500,2500,5000,10000,20000,40000],ground_truth=2.2e-06,code_type="hexagon",filename="results/myMethodhexagond5.0001")
+    
+
+    #my_samples(distance=3,p=0.00005,shots_list=[500,1500,2500,3500,4500,5000,6000,7000,10000,12000],ground_truth=5.632e-05,code_type="heavy_square",filename="results/myMethodheavysquared3.00005")
     
 
     
-    my_samples(distance=3,p=0.00005,shots_list=[100,500,1000,1500,2000,2500,3000,3500,4000,4500,5000],ground_truth=5.632e-05,code_type="heavy_square",filename="results/myMethodheavysquared3.00005")
+    #surface_groundTruth2()
     
 
-    my_samples(distance=3,p=0.00005,shots_list=[100,500,1000,1500,2000,2500,3000,3500,4000,4500,5000],ground_truth=5.633e-05,code_type="hexagon",filename="results/myMethodhexagond3.00005")
+
+
+    '''
+    stim_samples(distance=3,p=0.00001,shots_list=[350000,520000,1000000,3200000,6200000,9200000,12000000,32000000,62000000],ground_truth=2.32e-07,code_type="surface_code:rotated_memory_z",filename="pdiff/STIMsurfaced30.00001")
+    '''
+
+
+    '''
+    my_samples(distance=3,p=0.0001,shots_list=[100,250,500,800,1000,1200,1500,1800,2000],ground_truth=2.29e-05,code_type="surface_code:rotated_memory_z",filename="pdiff/mysurfaced30.0001")
+    '''
+
+    '''
+    stim_samples(distance=3,p=0.1,shots_list=[10,35,52,100,150,200,250,300,350,500],ground_truth=3.1782e-01,code_type="repetition_code:memory",filename="pdiff/STIMrepetition30.1")
+    stim_samples(distance=3,p=0.1,shots_list=[10,35,52,100,150,200,250,300,350,500],ground_truth=5.0042e-01,code_type="heavy_square",filename="pdiff/STIMsquare30.1")
+    stim_samples(distance=3,p=0.1,shots_list=[10,35,52,100,150,200,250,300,350,500],ground_truth=4.9515e-01,code_type="hexagon",filename="pdiff/STIMhexagon30.1")
+
+
+    stim_samples(distance=3,p=0.01,shots_list=[100,350,1000,1500,2000,4000,4500,5200,10000,20000],ground_truth=6.504e-03,code_type="repetition_code:memory",filename="pdiff/STIMrepetition30.01")
+    stim_samples(distance=3,p=0.01,shots_list=[10,35,100,150,200,400,450,520,1000,2000],ground_truth=3.53088e-03,code_type="heavy_square",filename="pdiff/STIMsquare30.01")
+    stim_samples(distance=3,p=0.01,shots_list=[10,35,100,150,200,400,450,520,1000,2000],ground_truth=7.086e-03,code_type="hexagon",filename="pdiff/STIMhexagon30.01")
+
+
+    stim_samples(distance=3,p=0.001,shots_list=[3500,5200,10000,32000,62000,92000,120000,320000,620000,920000,1000000],ground_truth=6.7e-05,code_type="repetition_code:memory",filename="pdiff/STIMrepetition30.001")
+    stim_samples(distance=3,p=0.001,shots_list=[50,100,250,500,1000,3500,5200,10000,32000,62000,92000],ground_truth=9.235e-03,code_type="heavy_square",filename="pdiff/STIMsquare30.001")
+    stim_samples(distance=3,p=0.001,shots_list=[3500,5200,10000,32000,62000,92000,120000,320000,620000,920000,1000000],ground_truth=7.52e-05,code_type="hexagon",filename="pdiff/STIMhexagon30.001")
+
+
+
+    stim_samples(distance=3,p=0.0001,shots_list=[3500,5200,10000,32000,62000,92000,120000,320000,620000,920000,1000000],ground_truth=1.525e-04,code_type="heavy_square",filename="pdiff/STIMhexagon30.0001")
+    stim_samples(distance=3,p=0.0001,shots_list=[3500,5200,10000,32000,62000,92000,120000,320000,620000,920000,1000000],ground_truth=7.52e-05,code_type="hexagon",filename="pdiff/STIMhexagon30.0001")
+    '''
+
+    #hexagon_groundTruth2()
+    #square_groundTruth2()
+    #repitition_groundTruth2()
+
+
+   
     
+    #stim_samples(distance=3,p=0.0001,shots_list=[350000,520000,1000000,3200000,6200000,9200000,12000000,32000000,62000000],ground_truth=2.32e-07,code_type="repetition_code:memory",filename="pdiff/STIMrepetition30.0001")
 
-    Heavy_hexagon()
+    #stim_samples(distance=3,p=0.01,shots_list=[10,35,100,150,200,400,450,520,1000,2000,5000],ground_truth=3.2235e-01,code_type="hexagon",filename="pdiff/STIMhexagon30.01")
+    #stim_samples(distance=3,p=0.001,shots_list=[250,500,1000,2000,3500,4000,5200,8000,10000,12000,15000,18000,23000,27000,30000,32000,35000,38000],ground_truth=7.086e-03,code_type="hexagon",filename="pdiff/STIMhexagon30.001")
+    #stim_samples(distance=3,p=0.01,shots_list=[10,35,100,150,200,400,450,520,1000,2000],ground_truth=3.53088e-01,code_type="heavy_square",filename="pdiff/STIMsquare30.01")
 
-    Heavy_square()
+
+    #stim_samples(distance=3,p=0.00001,shots_list=[5200,10000,32000,62000,92000,100000,120000,150000,180000,220000,250000,300000,350000,400000,450000,600000,800000,1000000,1200000,1500000],ground_truth=7.58e-06,code_type="heavy_square",filename="pdiff/STIMsquare30.00001")
+
+    #stim_samples(distance=3,p=0.00001,shots_list=[50000,200000,500000,1500000,3000000,4500000,6000000,8000000,10000000],ground_truth=7.58e-06,code_type="heavy_square",filename="pdiff/STIMsquare30.00001")
+
+    #stim_samples(distance=3,p=0.00001,shots_list=[20000,500000,1000000,2500000,5000000,7500000,9000000,12000000,18000000,25000000,36000000,48000000,64000000,96000000],ground_truth=8.8e-07,code_type="hexagon",filename="pdiff/STIMhexagon30.00001")
+
+
+    #stim_samples(distance=3,p=0.0001,shots_list=[20000,500000,1000000,2500000,5000000,7500000,9000000,12000000,18000000,25000000,36000000,48000000,64000000,96000000],ground_truth=6.9e-07,code_type="repetition_code:memory",filename="pdiff/STIMrepetition30.0001")
+
+
+    #stim_samples(distance=3,p=0.00001,shots_list=[25000000,20000,500000,1000000,2500000,5000000,7500000,9000000,12000000,18000000,25000000,36000000,48000000,80000000,120000000,240000000,480000000,640000000,960000000],ground_truth=8e-09,code_type="repetition_code:memory",filename="pdiff/STIMrepetition30.00001")
+
+
+    #stim_samples(distance=3,p=0.00001,shots_list=[25000000,20000,500000,1000000,2500000,5000000,7500000,9000000,12000000,18000000,25000000,36000000,48000000,80000000,120000000,240000000,480000000,640000000,960000000],ground_truth=8e-09,code_type="repetition_code:memory",filename="pdiff/STIMrepetition30.00001")
+
+    #my_samples(distance=3,p=0.0001,shots_list=[1000,1500,2000,2500,3000,3500,4000,4500,5000],ground_truth=1.525e-04,code_type="heavy_square",filename="pdiff/mymethodsquare3.0001")
+
+
+
+    #my_samples(distance=3,p=0.01,shots_list=[1000,1500,2000,2500,3000,3500,4000,4500,5000],ground_truth=3.2235e-01,code_type="hexagon",filename="pdiff/mymethodhexagon3.01")
+    #square_groundTruth2()

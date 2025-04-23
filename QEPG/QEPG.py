@@ -304,9 +304,11 @@ def python_sample_noise_and_calc_result(shots,totalnoise,W,dtype,shm_detec_name,
             if random_index[i]==1:
                 noise_vector[i]=1
             elif random_index[i]==2:
-                noise_vector[i+totalnoise]=1
+                noise_vector[i]=1
+                #noise_vector[i+totalnoise]=1
             elif random_index[i]==3:
-                noise_vector[i+2*totalnoise]=1           
+                noise_vector[i]=1
+                #noise_vector[i+2*totalnoise]=1           
         #print(dectectorMatrix.shape, noise_vector.shape)
         detectorresult=np.matmul(detectorMatrix, noise_vector)%2
         result.append(detectorresult)
@@ -340,8 +342,8 @@ class WSampler():
         self._sample_nums=[0]*self._totalnoise
         self._sample_sums=[0]*self._totalnoise
 
-        self._logical_error_distribution=[0]*self._totalnoise
-        self._logical_error_computed=[False]*self._totalnoise
+        self._logical_error_distribution=[0]*(self._totalnoise+1)
+        self._logical_error_computed=[False]*(self._totalnoise+1)
         self._logical_error_rate=0
 
         
@@ -789,7 +791,7 @@ class WSampler():
 
 
     def sequential_calc_logical_error_distribution(self,wlist,sList):
-        self._logical_error_distribution=[0]*self._totalnoise
+        self._logical_error_distribution=[0]*(self._totalnoise+1)
 
 
         for i in range(len(wlist)):
@@ -859,7 +861,7 @@ class WSampler():
             pool.join()
             return  # or re-raise if you want to propagate the exception
 
-        self._logical_error_distribution=[0]*self._totalnoise
+        self._logical_error_distribution=[0]*(self._totalnoise+1)
 
         self._logical_error_rate=0
 
@@ -993,7 +995,7 @@ class WSampler():
             pool.join()
             return  # or re-raise if you want to propagate the exception
 
-        self._logical_error_distribution=[0]*self._totalnoise
+        self._logical_error_distribution=[0]*(self._totalnoise+1)
 
         self._logical_error_rate=0
 

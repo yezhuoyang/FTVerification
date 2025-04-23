@@ -349,6 +349,27 @@ class CliffordCircuit:
             print(self._index_to_noise[i])
 
 
+    def add_xflip_noise(self, qubit):
+        self._stimcircuit.append("X_ERROR", [qubit], self._error_rate)
+        self._gatelists.append(pauliNoise(self._totalnoise, qubit))
+        self._index_to_noise[self._totalnoise]=self._gatelists[-1]
+        self._totalnoise+=1           
+
+
+
+    def add_depolarize(self, qubit):
+        self._stimcircuit.append("DEPOLARIZE1", [qubit], self._error_rate)
+        self._gatelists.append(pauliNoise(self._totalnoise, qubit))
+        self._index_to_noise[self._totalnoise]=self._gatelists[-1]
+        self._totalnoise+=1        
+
+
+    def add_cnot_no_noise(self, control, target):
+        self._gatelists.append(TwoQGate(twoQGateindices["CNOT"], control, target))
+        self._stimcircuit.append("CNOT", [control, target])        
+
+
+
     def add_cnot(self, control, target):
         self._stimcircuit.append("DEPOLARIZE1", [control], self._error_rate)
         self._gatelists.append(pauliNoise(self._totalnoise, control))
@@ -412,6 +433,16 @@ class CliffordCircuit:
         self._gatelists.append(SingeQGate(oneQGateindices["Z"], qubit))
         self._stimcircuit.append("Z", [qubit])
 
+
+    def add_measurement_no_noise(self, qubit):
+        self._gatelists.append(Measurement(self._totalMeas,qubit))
+        self._stimcircuit.append("M", [qubit])
+        #self._stimcircuit.append("DETECTOR", [stim.target_rec(-1)])
+        self._index_to_measurement[self._totalMeas]=self._gatelists[-1]
+        self._totalMeas+=1
+
+
+
     def add_measurement(self, qubit):
         self._stimcircuit.append("DEPOLARIZE1", [qubit], self._error_rate)  
         self._gatelists.append(pauliNoise(self._totalnoise, qubit))
@@ -434,6 +465,7 @@ class CliffordCircuit:
 
         self._stimcircuit.append("OBSERVABLE_INCLUDE", [stim.target_rec(k-totalMeas) for k in self._observable], 0)
 
+        #print(self._stimcircuit)
 
 
     def add_reset(self, qubit):
